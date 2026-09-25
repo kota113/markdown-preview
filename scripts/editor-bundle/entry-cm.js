@@ -1508,8 +1508,9 @@ function buildDecorations(view, detectedCodeCache) {
   // clicks the editor. Only reveal source syntax when the editor truly has
   // keyboard focus; otherwise the first block looks spuriously active.
   // A range selection is an operation on rendered content, not a request to
-  // reveal every Markdown marker it spans. Only a caret activates source
-  // syntax; this keeps Cmd-A and long drag selections in live-preview form.
+  // reveal every Markdown marker it spans. Only a caret, or an active IME
+  // composition selection, activates source syntax;
+  // this keeps Cmd-A and long drag selections in live-preview form.
   const sourceCaret = focused && (sel.empty || view.compositionStarted)
     ? sel.head
     : null
