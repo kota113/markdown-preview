@@ -1510,8 +1510,11 @@ function buildDecorations(view, detectedCodeCache) {
   // A range selection is an operation on rendered content, not a request to
   // reveal every Markdown marker it spans. Only a caret activates source
   // syntax; this keeps Cmd-A and long drag selections in live-preview form.
+  const sourceCaret = focused && (sel.empty || view.compositionStarted)
+    ? sel.head
+    : null
   const touches = (from, to) => currentFindTouches(state, from, to)
-    || (focused && sel.empty && sel.head >= from && sel.head <= to)
+    || (sourceCaret != null && sourceCaret >= from && sourceCaret <= to)
   const touchesLineOf = (pos) => {
     const line = state.doc.lineAt(pos)
     return touches(line.from, line.to)
