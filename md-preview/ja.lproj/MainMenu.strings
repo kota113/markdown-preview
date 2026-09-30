@@ -35,13 +35,13 @@
 	<key>AYu-sK-qS6.title</key>
 	<string>メインメニュー</string>
 	<key>Bw7-FT-i3A.title</key>
-	<string>別名で保存…</string>
+	<string>名前をつけて保存…</string>
 	<key>DVo-aG-piG.title</key>
 	<string>閉じる</string>
 	<key>Dv1-io-Yv7.title</key>
 	<string>スペルと文法</string>
 	<key>Ex0-fm-F00.title</key>
-	<string>書き出し…</string>
+	<string>書き出す…</string>
 	<key>Ex1-pd-F01.title</key>
 	<string>PDFとして書き出す…</string>
 	<key>F2S-fz-NVQ.title</key>
@@ -123,7 +123,7 @@
 	<key>hQb-2v-fYv.title</key>
 	<string>スマート引用符</string>
 	<key>hz2-CU-CR7.title</key>
-	<string>今すぐ書類をチェック</string>
+	<string>書類を今すぐチェック</string>
 	<key>hz9-B4-Xy5.title</key>
 	<string>サービス</string>
 	<key>kIP-vf-haE.title</key>
