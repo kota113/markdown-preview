@@ -115,7 +115,32 @@ for name in ['enterEditMode', 'previewPendingEdits', 'diskFileState', 'saveEdite
 swift += '}\n'
 swift += extract((root / 'md-preview/Rendering/EscapingHTMLFormatter.swift').read_text(),
                  'nonisolated enum TaskCheckboxSource')
+# Run the real titlebar status selector with a lightweight window substitute.
 swift += r'''
+final class SubtitleWindow { var subtitle = "" }
+final class SaveStatusPresenter {
+    var editorSaveStatus: EditorSaveStatus = .unchanged
+    var isEditing = true
+    let documentWindow = SubtitleWindow()
+'''
+swift += extract(autosave_source, 'func updateWindowSubtitle()') + '\n}\n'
+swift += r'''
+let statusPresenter = SaveStatusPresenter()
+let expectedStatusSubtitles: [(EditorSaveStatus, String)] = [
+    (.unchanged, ""), (.edited, "Edited"), (.saving, "Saving"),
+    (.saved, "Saved"), (.failed, "Auto-save failed")
+]
+for (status, expected) in expectedStatusSubtitles {
+    statusPresenter.editorSaveStatus = status
+    statusPresenter.updateWindowSubtitle()
+    precondition(statusPresenter.documentWindow.subtitle == expected,
+                 "Wrong titlebar subtitle for \\(status)")
+}
+statusPresenter.isEditing = false
+statusPresenter.editorSaveStatus = .saved
+statusPresenter.updateWindowSubtitle()
+precondition(statusPresenter.documentWindow.subtitle.isEmpty,
+             "Saved should not remain in the preview-mode titlebar")
 let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 defer { try? FileManager.default.removeItem(at: directory) }
@@ -187,6 +212,15 @@ for choice in [Response.alertFirstButtonReturn, .alertSecondButtonReturn, .cance
                  "Reentering Edit Mode must not resurrect the rejected draft")
     precondition(c.editorBaselineMarkdown == expectedDisk)
 }
+let reverted = try fixture("reverted-draft")
+reverted.enterEditMode()
+reverted.mainSplit!.editorViewController!.markdown = original + "\\nTransient edit"
+reverted.mainSplit!.editorViewController!.contentDidChange?()
+reverted.mainSplit!.editorViewController!.markdown = original
+reverted.previewPendingEdits()
+precondition(reverted.editorSaveStatus == .unchanged && !reverted.hasUnsavedEditorChanges,
+             "Returning to the disk baseline must clear the edit status")
+
 // A rename while either conflict choice waits must neither recreate the old
 // file nor show an unsaved checkbox value under the renamed document.
 for choice in [Response.alertFirstButtonReturn, .alertSecondButtonReturn] {
@@ -228,7 +262,7 @@ permission.currentMarkdown = original
 NSSavePanel.respond!(.OK)
 precondition(!FileManager.default.fileExists(atPath: chosen.path))
 precondition(tryDisk(other) == original)
-print("PASS: editor save status dirtiness, checkbox disk writes, draft preview and editor reentry for all conflict choices, rename during conflict, missing-file navigation, permission-panel navigation")
+print("PASS: editor save status titlebar, dirty/clean transitions, checkbox writes, draft preview and editor reentry, conflicts, rename, missing-file navigation, permission-panel navigation")
 '''
 with tempfile.TemporaryDirectory(prefix='checkbox-save-tests-') as directory:
     path = Path(directory) / 'probe.swift'
