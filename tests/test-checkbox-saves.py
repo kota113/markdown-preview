@@ -134,7 +134,7 @@ for (status, expected) in expectedStatusSubtitles {
     statusPresenter.editorSaveStatus = status
     statusPresenter.updateWindowSubtitle()
     precondition(statusPresenter.documentWindow.subtitle == expected,
-                 "Wrong titlebar subtitle for \\(status)")
+                 "Wrong titlebar subtitle for \(status)")
 }
 statusPresenter.isEditing = false
 statusPresenter.editorSaveStatus = .saved
@@ -214,7 +214,7 @@ for choice in [Response.alertFirstButtonReturn, .alertSecondButtonReturn, .cance
 }
 let reverted = try fixture("reverted-draft")
 reverted.enterEditMode()
-reverted.mainSplit!.editorViewController!.markdown = original + "\\nTransient edit"
+reverted.mainSplit!.editorViewController!.markdown = original + "\nTransient edit"
 reverted.mainSplit!.editorViewController!.contentDidChange?()
 reverted.mainSplit!.editorViewController!.markdown = original
 reverted.previewPendingEdits()
