@@ -10,6 +10,8 @@ import tempfile
 
 root = Path(__file__).resolve().parents[1]
 source = (root / 'md-preview/Document/DocumentWindowController+EditSession.swift').read_text()
+controller_source = (root / 'md-preview/Document/DocumentWindowController.swift').read_text()
+autosave_source = (root / 'md-preview/Document/DocumentWindowController+Autosave.swift').read_text()
 
 
 def extract(text, signature):
@@ -22,7 +24,7 @@ def extract(text, signature):
     return text[start:end]
 
 
-swift = r'''
+swift = extract(controller_source, 'enum EditorSaveStatus') + r'''
 import Foundation
 
 enum Response { case alertFirstButtonReturn, alertSecondButtonReturn, cancel, OK }
@@ -80,7 +82,8 @@ final class Controller {
     var editorDraftMarkdown: String?
     var editorBaselineMarkdown: String?
     var editorChangeRevision = 0
-    var hasUnsavedEditorChanges = false
+    var editorSaveStatus: EditorSaveStatus = .unchanged
+    var hasUnsavedEditorChanges: Bool { editorSaveStatus.hasUnsavedChanges }
     func stopAutoSaveTimer() {}
     func startAutoSaveTimerIfNeeded() {}
     func updateFormattingSelection(heading: Int, commands: [String]) {}
@@ -133,6 +136,11 @@ func respond(_ response: Response) {
     NSAlert.respond = nil
     callback(response)
 }
+precondition(!EditorSaveStatus.unchanged.hasUnsavedChanges)
+precondition(!EditorSaveStatus.saved.hasUnsavedChanges)
+precondition(EditorSaveStatus.edited.hasUnsavedChanges)
+precondition(EditorSaveStatus.saving.hasUnsavedChanges)
+precondition(EditorSaveStatus.failed.hasUnsavedChanges)
 let normal = try fixture("normal")
 normal.toggleTaskCheckbox(onLine: 3, checked: true)
 precondition(tryDisk(normal) == checked)
@@ -155,9 +163,11 @@ for choice in [Response.alertFirstButtonReturn, .alertSecondButtonReturn, .cance
 for choice in [Response.alertFirstButtonReturn, .alertSecondButtonReturn, .cancel] {
     let c = try fixture("draft-\(choice)")
     c.enterEditMode()
+    precondition(c.editorSaveStatus == .unchanged)
     let draft = original + "\nUnsaved paragraph\n"
     c.mainSplit!.editorViewController!.markdown = draft
     c.mainSplit!.editorViewController!.contentDidChange?()
+    precondition(c.editorSaveStatus == .edited)
     c.previewPendingEdits()
     precondition(c.editorDraftMarkdown == draft && c.hasUnsavedEditorChanges)
     c.toggleTaskCheckbox(onLine: 3, checked: true)
@@ -167,6 +177,7 @@ for choice in [Response.alertFirstButtonReturn, .alertSecondButtonReturn, .cance
     let expectedDisk = choice == .alertFirstButtonReturn ? expected : original
     precondition(tryDisk(c) == expectedDisk)
     precondition(c.hasUnsavedEditorChanges == (choice == .cancel))
+    precondition(c.editorSaveStatus == (choice == .cancel ? .edited : .unchanged))
     if choice != .cancel {
         precondition(c.editorDraftMarkdown == nil && c.editorBaselineMarkdown == nil)
         precondition(c.editorChangeRevision == 0)
@@ -217,7 +228,7 @@ permission.currentMarkdown = original
 NSSavePanel.respond!(.OK)
 precondition(!FileManager.default.fileExists(atPath: chosen.path))
 precondition(tryDisk(other) == original)
-print("PASS: checkbox disk writes, draft preview and editor reentry for all conflict choices, rename during conflict, missing-file navigation, permission-panel navigation")
+print("PASS: editor save status dirtiness, checkbox disk writes, draft preview and editor reentry for all conflict choices, rename during conflict, missing-file navigation, permission-panel navigation")
 '''
 with tempfile.TemporaryDirectory(prefix='checkbox-save-tests-') as directory:
     path = Path(directory) / 'probe.swift'

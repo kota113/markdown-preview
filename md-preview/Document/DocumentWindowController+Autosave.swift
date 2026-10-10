@@ -48,6 +48,7 @@ extension DocumentWindowController {
               currentFileURL != nil else { return }
 
         isPerformingAutomaticSave = true
+        editorSaveStatus = .saving
         commitEdits(exitAfter: false) { [weak self] success in
             guard let self else { return }
             self.isPerformingAutomaticSave = false
@@ -57,14 +58,17 @@ extension DocumentWindowController {
     }
 
     private func showAutoSaveFailure() {
+        guard hasUnsavedEditorChanges else { return }
         autoSaveFeedbackResetWork?.cancel()
         autoSaveFeedbackResetWork = nil
-        autoSaveFeedback = .failed
+        editorSaveStatus = .failed
 
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.autoSaveFeedbackResetWork = nil
-            self.autoSaveFeedback = .none
+            if self.editorSaveStatus == .failed {
+                self.editorSaveStatus = .edited
+            }
         }
         autoSaveFeedbackResetWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
@@ -73,24 +77,28 @@ extension DocumentWindowController {
     func resetAutoSaveFeedback() {
         autoSaveFeedbackResetWork?.cancel()
         autoSaveFeedbackResetWork = nil
-        autoSaveFeedback = .none
+        if editorSaveStatus == .failed {
+            editorSaveStatus = .edited
+        }
     }
 
     func updateWindowSubtitle() {
-        if autoSaveFeedback == .failed {
-            documentWindow.subtitle = NSLocalizedString(
-                "Auto-save failed", comment: "Window subtitle after an automatic save failure")
-        } else if isPerformingAutomaticSave {
-            documentWindow.subtitle = NSLocalizedString(
-                "Saving", comment: "Window subtitle while automatically saving edits")
-        } else if hasUnsavedEditorChanges {
+        switch editorSaveStatus {
+        case .unchanged:
+            documentWindow.subtitle = ""
+        case .edited:
             documentWindow.subtitle = NSLocalizedString(
                 "Edited", comment: "Window subtitle for unsaved changes")
-        } else if isEditing && hasSavedEditorChanges {
+        case .saving:
             documentWindow.subtitle = NSLocalizedString(
-                "Saved", comment: "Window subtitle after edits were saved successfully")
-        } else {
-            documentWindow.subtitle = ""
+                "Saving", comment: "Window subtitle while automatically saving edits")
+        case .saved:
+            documentWindow.subtitle = isEditing
+                ? NSLocalizedString("Saved", comment: "Window subtitle after edits were saved successfully")
+                : ""
+        case .failed:
+            documentWindow.subtitle = NSLocalizedString(
+                "Auto-save failed", comment: "Window subtitle after an automatic save failure")
         }
     }
 }

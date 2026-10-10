@@ -28,8 +28,7 @@ extension DocumentWindowController {
         }
         editor.contentDidChange = { [weak self] in
             self?.editorChangeRevision += 1
-            self?.hasSavedEditorChanges = false
-            self?.hasUnsavedEditorChanges = true
+            self?.editorSaveStatus = .edited
             self?.stopAutoSaveTimer()
             self?.startAutoSaveTimerIfNeeded()
         }
@@ -45,8 +44,7 @@ extension DocumentWindowController {
         if editorBaselineMarkdown == nil {
             editorBaselineMarkdown = currentMarkdown
             editorChangeRevision = 0
-            hasSavedEditorChanges = false
-            hasUnsavedEditorChanges = false
+            editorSaveStatus = .unchanged
         }
         showEditAccessory()
         updateEditToolbarItem()
@@ -64,7 +62,7 @@ extension DocumentWindowController {
             }
             self.editorDraftMarkdown = markdown
             self.currentMarkdown = markdown
-            self.hasUnsavedEditorChanges = markdown != self.editorBaselineMarkdown
+            self.editorSaveStatus = markdown == self.editorBaselineMarkdown ? .unchanged : .edited
             if !self.hasUnsavedEditorChanges {
                 self.editorDraftMarkdown = nil
                 self.editorBaselineMarkdown = nil
@@ -222,8 +220,7 @@ extension DocumentWindowController {
         }
         editorDraftMarkdown = nil
         editorBaselineMarkdown = nil
-        hasSavedEditorChanges = false
-        hasUnsavedEditorChanges = false
+        editorSaveStatus = .unchanged
         exitEditMode(rerender: shouldRerender, completion: completion)
     }
 
@@ -306,7 +303,10 @@ extension DocumentWindowController {
 
         guard hasUnsavedEditorChanges, hasLocalChanges else {
             if revision == nil || revision == editorChangeRevision {
-                hasUnsavedEditorChanges = false
+                // An unchanged ⌘S after a prior save should not erase "Saved".
+                if editorSaveStatus != .saved {
+                    editorSaveStatus = .unchanged
+                }
             }
             switch diskState {
             case .unchanged:
@@ -342,16 +342,16 @@ extension DocumentWindowController {
                                                 exitAfter: Bool) {
         switch result {
         case .saved:
-            hasSavedEditorChanges = true
             currentMarkdown = body
             if let url = currentFileURL {
                 markdownDocument?.replaceContents(markdown: body, fileURL: url)
             }
             editorDraftMarkdown = nil
             editorBaselineMarkdown = isEditing && !exitAfter ? body : nil
-            if revision == nil || revision == editorChangeRevision {
-                hasUnsavedEditorChanges = false
-            }
+            // Never mark an older snapshot as saved when typing continued
+            // while its disk write was in flight.
+            editorSaveStatus = revision == nil || revision == editorChangeRevision
+                ? .saved : .edited
             completeSuccessfulEditorCommit(exitAfter: exitAfter, rerender: true)
         case let .reloaded(externalMarkdown):
             adoptExternalMarkdown(externalMarkdown,
@@ -369,8 +369,7 @@ extension DocumentWindowController {
         editorDraftMarkdown = nil
         editorBaselineMarkdown = isEditing && !exitAfter ? markdown : nil
         editorChangeRevision = 0
-        hasSavedEditorChanges = false
-        hasUnsavedEditorChanges = false
+        editorSaveStatus = .unchanged
         if let url = currentFileURL {
             markdownDocument?.replaceContents(markdown: markdown, fileURL: url)
             if !exitAfter {
@@ -462,7 +461,7 @@ extension DocumentWindowController {
                 return
             }
             if !preserveUnsavedChanges {
-                self.hasUnsavedEditorChanges = false
+                self.editorSaveStatus = .unchanged
             }
             if self.editBar == nil {
                 self.updateEditToolbarItem()
@@ -559,7 +558,7 @@ extension DocumentWindowController {
             self.editorDraftMarkdown = nil
             self.editorBaselineMarkdown = nil
             self.editorChangeRevision = 0
-            self.hasUnsavedEditorChanges = false
+            self.editorSaveStatus = .unchanged
             self.currentMarkdown = markdown
             if let url = self.currentFileURL {
                 self.markdownDocument?.replaceContents(markdown: markdown, fileURL: url)

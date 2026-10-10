@@ -10,6 +10,23 @@ import os
 import UniformTypeIdentifiers
 
 
+/// Single source of truth for the editor's save state.
+enum EditorSaveStatus: Equatable {
+    case unchanged
+    case edited
+    case saving
+    case saved
+    case failed
+
+    /// Saving or a failed save still has content that has not reached disk.
+    var hasUnsavedChanges: Bool {
+        switch self {
+        case .edited, .saving, .failed: true
+        case .unchanged, .saved: false
+        }
+    }
+}
+
 // `NSMenuItemValidation` is load-bearing, not tidiness. `validateMenuItem` is only
 // reachable from AppKit through an @objc entry point, and `NSWindowController` has
 // no such method to override, so without this conformance the implementation below
@@ -41,11 +58,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         case save
         case discard
         case cancel
-    }
-
-    enum AutoSaveFeedback: Equatable {
-        case none
-        case failed
     }
 
     struct HistoryEntry {
@@ -83,34 +95,21 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     var searchOpenRequestID: UUID?
     var autoSaveTimer: Timer?
     var autoSaveTimerID: UUID?
-    var isPerformingAutomaticSave = false {
-        didSet {
-            if oldValue != isPerformingAutomaticSave { updateWindowSubtitle() }
-        }
-    }
-    /// A successful write in the current editor session, cleared on new edits.
-    var hasSavedEditorChanges = false {
-        didSet {
-            if oldValue != hasSavedEditorChanges { updateWindowSubtitle() }
-        }
-    }
+    /// Retained for autosave-specific conflict and permission handling.
+    var isPerformingAutomaticSave = false
     var autoSaveFeedbackResetWork: DispatchWorkItem?
-    var autoSaveFeedback = AutoSaveFeedback.none {
-        didSet { updateWindowSubtitle() }
-    }
-    /// Drives the native titlebar subtitle while the editor contains changes
-    /// that have not yet been written successfully.
-    var hasUnsavedEditorChanges = false {
+    var editorSaveStatus: EditorSaveStatus = .unchanged {
         didSet {
-            guard oldValue != hasUnsavedEditorChanges else { return }
-            if hasUnsavedEditorChanges {
+            guard oldValue != editorSaveStatus else { return }
+            if editorSaveStatus.hasUnsavedChanges && !oldValue.hasUnsavedChanges {
                 startAutoSaveTimerIfNeeded()
-            } else if !isEditorCommitInFlight {
+            } else if !editorSaveStatus.hasUnsavedChanges && !isEditorCommitInFlight {
                 stopAutoSaveTimer()
             }
             updateWindowSubtitle()
         }
     }
+    var hasUnsavedEditorChanges: Bool { editorSaveStatus.hasUnsavedChanges }
     /// The formatting bar shown while editing. Not a titlebar accessory:
     /// AppKit pins the native tab bar to the bottom of the titlebar, below
     /// every accessory, so a bar mounted there sits above the tabs and its
@@ -379,7 +378,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     func display(markdown: String, fileURL: URL?) {
         currentFileURL = fileURL
         currentMarkdown = markdown
-        hasSavedEditorChanges = false
+        editorSaveStatus = .unchanged
         resetAutoSaveFeedback()
         if fileURL == nil {
             stopAutoSaveTimer()
@@ -460,7 +459,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         let isFileSwitch = currentFileURL != nil && currentFileURL != url
         currentFileURL = url
         currentMarkdown = nil
-        hasSavedEditorChanges = false
+        editorSaveStatus = .unchanged
         pendingEditModeURL = preservingEditMode ? url.standardizedFileURL : nil
         markdownDocument?.replaceFileURL(url)
         documentWindow.title = url.lastPathComponent
