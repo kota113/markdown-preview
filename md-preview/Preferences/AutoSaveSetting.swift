@@ -22,7 +22,7 @@ enum AutoSaveSetting {
 
     static func currentMinutes(from defaults: UserDefaults) -> Int {
         guard let stored = defaults.object(forKey: defaultsKey) as? NSNumber else {
-            return twoSeconds
+            return disabledMinutes
         }
         return clampedMinutes(stored.intValue)
     }

@@ -85,7 +85,7 @@ extension DocumentWindowController {
                 "Saving", comment: "Window subtitle while automatically saving edits")
         } else if hasUnsavedEditorChanges {
             documentWindow.subtitle = NSLocalizedString(
-                "Edited･Not saved", comment: "Window subtitle for unsaved changes")
+                "Edited", comment: "Window subtitle for unsaved changes")
         } else if isEditing && hasSavedEditorChanges {
             documentWindow.subtitle = NSLocalizedString(
                 "Saved", comment: "Window subtitle after edits were saved successfully")
