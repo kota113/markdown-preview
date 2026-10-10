@@ -77,14 +77,20 @@ extension DocumentWindowController {
     }
 
     func updateWindowSubtitle() {
-        switch autoSaveFeedback {
-        case .failed:
+        if autoSaveFeedback == .failed {
             documentWindow.subtitle = NSLocalizedString(
                 "Auto-save failed", comment: "Window subtitle after an automatic save failure")
-        case .none:
-            documentWindow.subtitle = hasUnsavedEditorChanges
-                ? NSLocalizedString("Edited", comment: "Window subtitle for unsaved changes")
-                : ""
+        } else if isPerformingAutomaticSave {
+            documentWindow.subtitle = NSLocalizedString(
+                "Saving", comment: "Window subtitle while automatically saving edits")
+        } else if hasUnsavedEditorChanges {
+            documentWindow.subtitle = NSLocalizedString(
+                "Edited･Not saved", comment: "Window subtitle for unsaved changes")
+        } else if isEditing && hasSavedEditorChanges {
+            documentWindow.subtitle = NSLocalizedString(
+                "Saved", comment: "Window subtitle after edits were saved successfully")
+        } else {
+            documentWindow.subtitle = ""
         }
     }
 }

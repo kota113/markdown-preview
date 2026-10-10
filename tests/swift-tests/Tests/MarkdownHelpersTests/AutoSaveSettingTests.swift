@@ -3,13 +3,14 @@ import XCTest
 @testable import MarkdownHelpers
 
 final class AutoSaveSettingTests: XCTestCase {
-    func testMissingValueDisablesAutomaticSaving() throws {
+    func testMissingValueDefaultsToTwoSecondDebounce() throws {
         let defaults = try makeDefaults()
 
         XCTAssertEqual(
             AutoSaveSetting.currentMinutes(from: defaults),
-            AutoSaveSetting.disabledMinutes
+            AutoSaveSetting.twoSeconds
         )
+        XCTAssertEqual(AutoSaveSetting.interval(for: AutoSaveSetting.twoSeconds), 2)
     }
 
     func testStoredValueIsClampedToSupportedRange() throws {
@@ -20,6 +21,9 @@ final class AutoSaveSettingTests: XCTestCase {
             AutoSaveSetting.currentMinutes(from: defaults),
             AutoSaveSetting.disabledMinutes
         )
+
+        defaults.set(AutoSaveSetting.twoSeconds, forKey: AutoSaveSetting.defaultsKey)
+        XCTAssertEqual(AutoSaveSetting.currentMinutes(from: defaults), AutoSaveSetting.twoSeconds)
 
         defaults.set(120, forKey: AutoSaveSetting.defaultsKey)
         XCTAssertEqual(AutoSaveSetting.currentMinutes(from: defaults), 60)
@@ -33,6 +37,9 @@ final class AutoSaveSettingTests: XCTestCase {
             defaults.integer(forKey: AutoSaveSetting.defaultsKey),
             AutoSaveSetting.disabledMinutes
         )
+
+        AutoSaveSetting.store(minutes: AutoSaveSetting.twoSeconds, in: defaults)
+        XCTAssertEqual(defaults.integer(forKey: AutoSaveSetting.defaultsKey), AutoSaveSetting.twoSeconds)
 
         AutoSaveSetting.store(minutes: 12, in: defaults)
         XCTAssertEqual(AutoSaveSetting.currentMinutes(from: defaults), 12)

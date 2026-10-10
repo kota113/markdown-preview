@@ -48,6 +48,7 @@ struct GeneralSettingsView: View {
                 LabeledContent {
                     Picker("", selection: $model.autoSaveIntervalMinutes) {
                         Text(L("Never")).tag(AutoSaveSetting.disabledMinutes)
+                        Text(L("2 seconds")).tag(AutoSaveSetting.twoSeconds)
                         Text(L("30 seconds")).tag(AutoSaveSetting.thirtySeconds)
                         Text(L("1 minute")).tag(1)
                         ForEach([5, 10, 15, 30, 60], id: \.self) { minutes in
@@ -59,12 +60,12 @@ struct GeneralSettingsView: View {
                     .pickerStyle(.menu)
                 } label: {
                     Text(L("Automatic saving"))
-                    Text(L("Save edited documents periodically."))
+                    Text(L("Save edited documents after you stop typing."))
                 }
             } header: {
                 Text(L("Saving"))
             } footer: {
-                Text(L("Automatic saving runs while a document has unsaved edits."))
+                Text(L("Automatic saving waits for the chosen delay after your last change. New documents must be saved manually first."))
             }
 
             Section {

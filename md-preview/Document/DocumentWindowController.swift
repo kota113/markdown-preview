@@ -83,7 +83,17 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     var searchOpenRequestID: UUID?
     var autoSaveTimer: Timer?
     var autoSaveTimerID: UUID?
-    var isPerformingAutomaticSave = false
+    var isPerformingAutomaticSave = false {
+        didSet {
+            if oldValue != isPerformingAutomaticSave { updateWindowSubtitle() }
+        }
+    }
+    /// A successful write in the current editor session, cleared on new edits.
+    var hasSavedEditorChanges = false {
+        didSet {
+            if oldValue != hasSavedEditorChanges { updateWindowSubtitle() }
+        }
+    }
     var autoSaveFeedbackResetWork: DispatchWorkItem?
     var autoSaveFeedback = AutoSaveFeedback.none {
         didSet { updateWindowSubtitle() }
@@ -369,6 +379,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     func display(markdown: String, fileURL: URL?) {
         currentFileURL = fileURL
         currentMarkdown = markdown
+        hasSavedEditorChanges = false
         resetAutoSaveFeedback()
         if fileURL == nil {
             stopAutoSaveTimer()
@@ -449,6 +460,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         let isFileSwitch = currentFileURL != nil && currentFileURL != url
         currentFileURL = url
         currentMarkdown = nil
+        hasSavedEditorChanges = false
         pendingEditModeURL = preservingEditMode ? url.standardizedFileURL : nil
         markdownDocument?.replaceFileURL(url)
         documentWindow.title = url.lastPathComponent

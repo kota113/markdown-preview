@@ -5,11 +5,12 @@
 
 import Foundation
 
-/// Shared interval used by the editor's periodic save timer and Settings.
+/// Delay after the last editor change before autosaving (configured in Settings).
 enum AutoSaveSetting {
     static let defaultsKey = "MarkdownPreview.autoSaveIntervalMinutes"
-    // Keep the existing minute-based preference key compatible without
-    // confusing the new 30-second choice with a stored minute count.
+    // Preserve minute-based settings; negative sentinels identify sub-minute
+    // choices without changing previously saved preferences.
+    static let twoSeconds = -2
     static let thirtySeconds = -30
     static let disabledMinutes = 0
     static let minimumMinutes = 1
@@ -21,7 +22,7 @@ enum AutoSaveSetting {
 
     static func currentMinutes(from defaults: UserDefaults) -> Int {
         guard let stored = defaults.object(forKey: defaultsKey) as? NSNumber else {
-            return disabledMinutes
+            return twoSeconds
         }
         return clampedMinutes(stored.intValue)
     }
@@ -31,7 +32,7 @@ enum AutoSaveSetting {
     }
 
     static func clampedMinutes(_ minutes: Int) -> Int {
-        if minutes == thirtySeconds { return thirtySeconds }
+        if minutes == twoSeconds || minutes == thirtySeconds { return minutes }
         guard minutes != disabledMinutes else { return disabledMinutes }
         return min(max(minutes, minimumMinutes), maximumMinutes)
     }
@@ -44,6 +45,8 @@ enum AutoSaveSetting {
         switch minutes {
         case disabledMinutes:
             return nil
+        case twoSeconds:
+            return 2
         case thirtySeconds:
             return 30
         default:

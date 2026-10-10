@@ -28,6 +28,7 @@ extension DocumentWindowController {
         }
         editor.contentDidChange = { [weak self] in
             self?.editorChangeRevision += 1
+            self?.hasSavedEditorChanges = false
             self?.hasUnsavedEditorChanges = true
             self?.stopAutoSaveTimer()
             self?.startAutoSaveTimerIfNeeded()
@@ -44,6 +45,7 @@ extension DocumentWindowController {
         if editorBaselineMarkdown == nil {
             editorBaselineMarkdown = currentMarkdown
             editorChangeRevision = 0
+            hasSavedEditorChanges = false
             hasUnsavedEditorChanges = false
         }
         showEditAccessory()
@@ -220,6 +222,7 @@ extension DocumentWindowController {
         }
         editorDraftMarkdown = nil
         editorBaselineMarkdown = nil
+        hasSavedEditorChanges = false
         hasUnsavedEditorChanges = false
         exitEditMode(rerender: shouldRerender, completion: completion)
     }
@@ -339,6 +342,7 @@ extension DocumentWindowController {
                                                 exitAfter: Bool) {
         switch result {
         case .saved:
+            hasSavedEditorChanges = true
             currentMarkdown = body
             if let url = currentFileURL {
                 markdownDocument?.replaceContents(markdown: body, fileURL: url)
@@ -365,6 +369,7 @@ extension DocumentWindowController {
         editorDraftMarkdown = nil
         editorBaselineMarkdown = isEditing && !exitAfter ? markdown : nil
         editorChangeRevision = 0
+        hasSavedEditorChanges = false
         hasUnsavedEditorChanges = false
         if let url = currentFileURL {
             markdownDocument?.replaceContents(markdown: markdown, fileURL: url)
@@ -462,6 +467,7 @@ extension DocumentWindowController {
             if self.editBar == nil {
                 self.updateEditToolbarItem()
             }
+            self.updateWindowSubtitle()
             completion()
         }
     }
