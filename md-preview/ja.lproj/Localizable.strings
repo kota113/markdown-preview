@@ -78,6 +78,7 @@
 "Toggle Edit Mode" = "編集モードを切り替え";
 
 /* File menu */
+"New Document" = "新規書類";
 "New Tab" = "新規タブ";
 "Choose a name and location for the new Markdown file." = "新しい Markdown ファイルの名前と場所を選択してください。";
 

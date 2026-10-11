@@ -79,6 +79,7 @@
 "Toggle Edit Mode" = "Toggle Edit Mode";
 
 /* File menu */
+"New Document" = "New Document";
 "New Tab" = "New Tab";
 "Choose a name and location for the new Markdown file." = "Choose a name and location for the new Markdown file.";
 

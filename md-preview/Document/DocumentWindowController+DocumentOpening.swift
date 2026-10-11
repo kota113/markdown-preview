@@ -8,6 +8,17 @@
 import Cocoa
 import UniformTypeIdentifiers
 
+/// Keeps the New Document choice inside the New Tab open panel. The sheet
+/// completion creates the document after the panel has been dismissed.
+private final class NewDocumentOpenPanelButton: NSButton {
+    private(set) var didRequestNewDocument = false
+
+    @objc func requestNewDocument(_ sender: Any?) {
+        didRequestNewDocument = true
+        (window as? NSOpenPanel)?.cancel(nil)
+    }
+}
+
 extension DocumentWindowController {
     private struct ContextOpenPayload {
         let fileURL: URL
@@ -50,8 +61,8 @@ extension DocumentWindowController {
     /// Backs File > New Tab. Deliberately NOT the NSResponder
     /// `newWindowForTab(_:)` override: responding to that selector is what
     /// makes AppKit show the "+" button in the tab bar, and the app hides
-    /// that button. New tabs remain file-backed, so prompt for a file and
-    /// open it as a tab — an explicit tab request, unlike ⌘O.
+    /// that button. The picker can open an existing file or create an
+    /// untitled document as a tab — an explicit tab request, unlike ⌘O.
     @objc func newDocumentTab(_ sender: Any?) {
         promptForDocument(openAsTab: true)
     }
@@ -134,8 +145,30 @@ extension DocumentWindowController {
 
     private func promptForDocument(openAsTab: Bool) {
         let panel = makeOpenPanel()
+        let newDocumentButton: NewDocumentOpenPanelButton?
+        if openAsTab {
+            let button = NewDocumentOpenPanelButton(frame: .zero)
+            button.title = NSLocalizedString(
+                "New Document",
+                comment: "Create an untitled document in a new tab from the open panel"
+            )
+            button.bezelStyle = .rounded
+            button.target = button
+            button.action = #selector(NewDocumentOpenPanelButton.requestNewDocument(_:))
+            button.sizeToFit()
+            panel.accessoryView = button
+            newDocumentButton = button
+        } else {
+            newDocumentButton = nil
+        }
+
         panel.beginSheetModal(for: documentWindow) { [weak self] response in
-            guard let self, response == .OK, let url = panel.url else { return }
+            guard let self else { return }
+            if newDocumentButton?.didRequestNewDocument == true {
+                self.createUntitledDocumentInNewTab()
+                return
+            }
+            guard response == .OK, let url = panel.url else { return }
             if url.isExistingDirectory {
                 self.openFolder(url)
                 return
@@ -147,6 +180,18 @@ extension DocumentWindowController {
                 // "Prefer tabs" setting via attachToExistingTabGroupIfNeeded.
                 self.openDocumentWindow(for: url)
             }
+        }
+    }
+
+    private func createUntitledDocumentInNewTab() {
+        // Ensure the tab joins the window that presented the open panel.
+        documentWindow.makeKeyAndOrderFront(nil)
+        Self.markNextWindowAsTab()
+        defer { Self.nextWindowRequestsTab = false }
+        do {
+            _ = try NSDocumentController.shared.openUntitledDocumentAndDisplay(true)
+        } catch {
+            NSAlert(error: error).beginSheetModal(for: documentWindow)
         }
     }
 
