@@ -77,7 +77,7 @@ extension DocumentWindowController {
                 return
             }
             guard let self else { return }
-            self.hasUnsavedEditorChanges = true
+            self.editorSaveStatus = .edited
             self.commitEdits(exitAfter: false)
         }
     }
@@ -261,7 +261,11 @@ extension DocumentWindowController {
                     self.editorDraftMarkdown = nil
                     self.editorBaselineMarkdown = updated
                     self.editorChangeRevision = 0
-                    self.hasUnsavedEditorChanges = false
+                    self.editorSaveStatus = .afterSuccessfulWrite(
+                        isEditing: self.isEditing,
+                        exitAfter: false,
+                        hasNewerEdits: false
+                    )
                 }
                 self.renderCurrentDocument(text: updated, fileURL: markdownURL)
             case let .reloaded(externalMarkdown):
