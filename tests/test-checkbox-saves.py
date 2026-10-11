@@ -120,7 +120,6 @@ swift += r'''
 final class SubtitleWindow { var subtitle = "" }
 final class SaveStatusPresenter {
     var editorSaveStatus: EditorSaveStatus = .unchanged
-    var isEditing = true
     let documentWindow = SubtitleWindow()
 '''
 swift += extract(autosave_source, 'func updateWindowSubtitle()') + '\n}\n'
@@ -136,11 +135,33 @@ for (status, expected) in expectedStatusSubtitles {
     precondition(statusPresenter.documentWindow.subtitle == expected,
                  "Wrong titlebar subtitle for \(status)")
 }
-statusPresenter.isEditing = false
-statusPresenter.editorSaveStatus = .saved
+// Editor-exit transitions keep unsaved drafts but clear a saved notification.
+precondition(EditorSaveStatus.saved.onExitEditMode(preserveUnsavedChanges: true) == .unchanged)
+precondition(EditorSaveStatus.saved.onExitEditMode(preserveUnsavedChanges: false) == .unchanged)
+precondition(EditorSaveStatus.edited.onExitEditMode(preserveUnsavedChanges: true) == .edited)
+precondition(EditorSaveStatus.edited.onExitEditMode(preserveUnsavedChanges: false) == .unchanged)
+precondition(EditorSaveStatus.saving.onExitEditMode(preserveUnsavedChanges: true) == .saving)
+precondition(EditorSaveStatus.failed.onExitEditMode(preserveUnsavedChanges: true) == .failed)
+// A completed write after entering Read mode must never produce "Saved".
+precondition(EditorSaveStatus.afterSuccessfulWrite(
+    isEditing: true, exitAfter: false, hasNewerEdits: false) == .saved)
+precondition(EditorSaveStatus.afterSuccessfulWrite(
+    isEditing: false, exitAfter: false, hasNewerEdits: false) == .unchanged)
+precondition(EditorSaveStatus.afterSuccessfulWrite(
+    isEditing: true, exitAfter: true, hasNewerEdits: false) == .unchanged)
+precondition(EditorSaveStatus.afterSuccessfulWrite(
+    isEditing: false, exitAfter: false, hasNewerEdits: true) == .edited)
+// Exercise titlebar rendering after the transition, not a special UI workaround.
+statusPresenter.editorSaveStatus = EditorSaveStatus.saved.onExitEditMode(
+    preserveUnsavedChanges: true)
 statusPresenter.updateWindowSubtitle()
 precondition(statusPresenter.documentWindow.subtitle.isEmpty,
-             "Saved should not remain in the preview-mode titlebar")
+             "Saved must clear when switching to Read mode")
+statusPresenter.editorSaveStatus = EditorSaveStatus.afterSuccessfulWrite(
+    isEditing: false, exitAfter: false, hasNewerEdits: false)
+statusPresenter.updateWindowSubtitle()
+precondition(statusPresenter.documentWindow.subtitle.isEmpty,
+             "Finishing a save in Read mode must leave a blank subtitle")
 let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 defer { try? FileManager.default.removeItem(at: directory) }

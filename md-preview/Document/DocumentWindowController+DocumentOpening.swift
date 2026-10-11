@@ -60,7 +60,6 @@ extension DocumentWindowController {
         let folderURL = folderURL.standardizedFileURL
         if currentFileURL == nil {
             documentWindow.title = folderURL.lastPathComponent
-            updateWindowSubtitle()
         }
         (documentWindow.contentViewController as? MainSplitViewController)?
             .openFolder(folderURL, selectedFileURL: currentFileURL)
@@ -185,7 +184,6 @@ extension DocumentWindowController {
         guard currentFileURL?.standardizedFileURL == fileURL.standardizedFileURL else { return }
         currentMarkdown = text
         resetAutoSaveFeedback()
-        updateWindowSubtitle()
         refreshOpenInLLMItem()
         updateEditToolbarItem()
         markdownDocument?.replaceContents(markdown: text, fileURL: fileURL)

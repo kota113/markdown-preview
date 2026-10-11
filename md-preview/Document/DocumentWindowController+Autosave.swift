@@ -93,9 +93,8 @@ extension DocumentWindowController {
             documentWindow.subtitle = NSLocalizedString(
                 "Saving", comment: "Window subtitle while automatically saving edits")
         case .saved:
-            documentWindow.subtitle = isEditing
-                ? NSLocalizedString("Saved", comment: "Window subtitle after edits were saved successfully")
-                : ""
+            documentWindow.subtitle = NSLocalizedString(
+                "Saved", comment: "Window subtitle after edits were saved successfully")
         case .failed:
             documentWindow.subtitle = NSLocalizedString(
                 "Auto-save failed", comment: "Window subtitle after an automatic save failure")

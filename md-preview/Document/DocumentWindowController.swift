@@ -25,6 +25,21 @@ enum EditorSaveStatus: Equatable {
         case .unchanged, .saved: false
         }
     }
+
+    /// Read mode retains unsaved drafts, but not the edit-only "Saved" state.
+    func onExitEditMode(preserveUnsavedChanges: Bool) -> Self {
+        preserveUnsavedChanges && hasUnsavedChanges ? self : .unchanged
+    }
+
+    /// A successful write outside Edit mode has no visible save feedback.
+    static func afterSuccessfulWrite(
+        isEditing: Bool,
+        exitAfter: Bool,
+        hasNewerEdits: Bool
+    ) -> Self {
+        if hasNewerEdits { return .edited }
+        return isEditing && !exitAfter ? .saved : .unchanged
+    }
 }
 
 // `NSMenuItemValidation` is load-bearing, not tidiness. `validateMenuItem` is only
@@ -385,7 +400,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         }
         documentWindow.title = fileURL?.lastPathComponent
             ?? NSLocalizedString("Untitled", comment: "Window title when no document is open")
-        updateWindowSubtitle()
         attachToExistingTabGroupIfNeeded()
         if let pendingSnapshot {
             self.pendingSnapshot = nil
@@ -464,7 +478,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         markdownDocument?.replaceFileURL(url)
         documentWindow.title = url.lastPathComponent
         resetAutoSaveFeedback()
-        updateWindowSubtitle()
         if isFileSwitch {
             split?.clearContent()
         }
@@ -565,7 +578,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         currentFileURL = newURL
         markdownDocument?.replaceFileURL(newURL)
         documentWindow.title = newURL.lastPathComponent
-        updateWindowSubtitle()
         NSDocumentController.shared.noteNewRecentDocumentURL(newURL)
         refreshOpenWithItem()
         refreshOpenActionsItem()

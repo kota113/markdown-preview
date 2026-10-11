@@ -348,10 +348,13 @@ extension DocumentWindowController {
             }
             editorDraftMarkdown = nil
             editorBaselineMarkdown = isEditing && !exitAfter ? body : nil
-            // Never mark an older snapshot as saved when typing continued
-            // while its disk write was in flight.
-            editorSaveStatus = revision == nil || revision == editorChangeRevision
-                ? .saved : .edited
+            // "Saved" is Edit-mode feedback only. A completed save in Read
+            // mode is unchanged; an older write cannot clear newer edits.
+            editorSaveStatus = .afterSuccessfulWrite(
+                isEditing: isEditing,
+                exitAfter: exitAfter,
+                hasNewerEdits: revision != nil && revision != editorChangeRevision
+            )
             completeSuccessfulEditorCommit(exitAfter: exitAfter, rerender: true)
         case let .reloaded(externalMarkdown):
             adoptExternalMarkdown(externalMarkdown,
@@ -460,13 +463,12 @@ extension DocumentWindowController {
                 completion()
                 return
             }
-            if !preserveUnsavedChanges {
-                self.editorSaveStatus = .unchanged
-            }
+            self.editorSaveStatus = self.editorSaveStatus.onExitEditMode(
+                preserveUnsavedChanges: preserveUnsavedChanges
+            )
             if self.editBar == nil {
                 self.updateEditToolbarItem()
             }
-            self.updateWindowSubtitle()
             completion()
         }
     }
