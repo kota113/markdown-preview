@@ -72,7 +72,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     // Coalesces keystrokes into periodic inspector updates.
     var pendingInspectorRefresh: DispatchWorkItem?
     var inspectorRefreshSessionID = UUID()
-    static let inspectorRefreshInterval: TimeInterval = 0.15
+    static let inspectorRefreshInterval: TimeInterval = 0.10
     /// In-memory source shown by preview before the user saves it.
     var editorDraftMarkdown: String?
     /// Last known on-disk source, retained while preview displays a draft.
