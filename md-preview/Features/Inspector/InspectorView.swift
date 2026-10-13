@@ -52,8 +52,21 @@ extension DocumentMetadata {
     }
 }
 
+struct SelectedTextStatistics: Equatable {
+    let wordCount: Int
+    let characterCount: Int
+    let lineCount: Int
+
+    init(text: String) {
+        characterCount = text.count
+        wordCount = text.split { $0.isWhitespace }.count
+        lineCount = text.isEmpty ? 0 : text.components(separatedBy: .newlines).count
+    }
+}
+
 struct InspectorView: View {
     let metadata: DocumentMetadata
+    let selectedTextStatistics: SelectedTextStatistics?
     @State private var tab: Tab = .document
     @State private var pathExpanded = false
 
@@ -160,17 +173,17 @@ struct InspectorView: View {
             }
 
             Section {
-                LabeledContent(
+                statisticRow(
                     NSLocalizedString("Words", comment: "Inspector field label"),
-                    value: metadata.wordCount.formatted()
+                    count: selectedTextStatistics?.wordCount ?? metadata.wordCount
                 )
-                LabeledContent(
+                statisticRow(
                     NSLocalizedString("Characters", comment: "Inspector field label"),
-                    value: metadata.characterCount.formatted()
+                    count: selectedTextStatistics?.characterCount ?? metadata.characterCount
                 )
-                LabeledContent(
+                statisticRow(
                     NSLocalizedString("Lines", comment: "Inspector field label"),
-                    value: metadata.lineCount.formatted()
+                    count: selectedTextStatistics?.lineCount ?? metadata.lineCount
                 )
             }
 
@@ -198,6 +211,35 @@ struct InspectorView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func statisticRow(_ title: String, count: Int) -> some View {
+        LabeledContent {
+            Text(count.formatted())
+        } label: {
+            if selectedTextStatistics != nil {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text(title)
+                        selectedIndicator
+                    }
+                    .fixedSize(horizontal: true, vertical: false)
+
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(title).fixedSize(horizontal: true, vertical: false)
+                        selectedIndicator
+                    }
+                }
+            } else {
+                Text(title)
+            }
+        }
+    }
+
+    private var selectedIndicator: some View {
+        Text(NSLocalizedString("(Selected)", comment: "Inspector selected range indicator"))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: true, vertical: false)
     }
 
     private func pathText(for url: URL) -> Text {

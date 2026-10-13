@@ -23,6 +23,10 @@ extension DocumentWindowController {
             assetBaseURL: currentFileURL?.deletingLastPathComponent(),
             autofocus: autofocus
         )
+        split.displayInspectorSelection(nil)
+        editor.selectionDidChange = { [weak self] text in
+            self?.mainSplit?.displayInspectorSelection(text)
+        }
         editor.cancelRequested = { [weak self] in
             self?.previewPendingEdits()
         }
@@ -438,6 +442,8 @@ extension DocumentWindowController {
             return
         }
         split.editorViewController?.contentDidChange = nil
+        split.editorViewController?.selectionDidChange = nil
+        split.displayInspectorSelection(nil)
         split.editorViewController?.formattingDidChange = nil
         split.editorViewController?.cancelRequested = nil
         split.editorViewController?.pasteImageRequested = nil

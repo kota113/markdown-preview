@@ -65,6 +65,27 @@ if (editor) {
   check("exec('bold') inserts markers", editor.getMarkdown().startsWith("****"))
 }
 
+// Selecting text updates statistics without marking the buffer as modified.
+const selectionHost = dom.window.document.createElement("div")
+dom.window.document.body.appendChild(selectionHost)
+const selectionValues = []
+let selectionDirtyCount = 0
+const selectionEditor = dom.window.MDEditor.create(
+  selectionHost, "alpha beta\nthird", {
+    onSelectionChange: (text) => selectionValues.push(text),
+    onDirty: () => selectionDirtyCount++,
+  })
+selectionEditor.select(0, 5)
+check("selection callback receives selected source", selectionValues.at(-1) === "alpha")
+selectionEditor.select(6, 16)
+check("selection callback preserves multiline source", selectionValues.at(-1) === "beta\nthird")
+selectionEditor.select(6)
+check("selection callback clears on collapsed caret", selectionValues.at(-1) === null)
+check("selection-only changes do not dirty the document", selectionDirtyCount === 0)
+selectionEditor.select(0, 5)
+selectionEditor.insert("replacement")
+check("selection callback clears after replacing selected text", selectionValues.at(-1) === null)
+
 const highlightHost = dom.window.document.createElement("div")
 dom.window.document.body.appendChild(highlightHost)
 const highlightSource = "before ==Highlighted text== after"

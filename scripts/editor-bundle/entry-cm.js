@@ -3054,6 +3054,11 @@ window.MDEditor = {
               if (tableFormattingTargets.has(view)) captureTableSelection(view)
               else callbacks.onFormattingChange(formattingState(update.state))
             }
+            if (callbacks?.onSelectionChange && (update.selectionSet || update.docChanged)) {
+              const selection = update.state.selection.main
+              callbacks.onSelectionChange(
+                selection.empty ? null : update.state.sliceDoc(selection.from, selection.to))
+            }
             if (update.docChanged && callbacks?.onSearchChange) {
               const search = update.state.field(documentFind)
               callbacks.onSearchChange({ index: search.index + 1, total: search.matches.length })

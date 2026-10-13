@@ -192,6 +192,7 @@
 "Document Type" = "書類の種類";
 "Markdown Document" = "Markdown 書類";
 "File Size" = "ファイルサイズ";
+"(Selected)" = "(選択範囲)";
 "Words" = "単語数";
 "Characters" = "文字数";
 "Lines" = "行数";

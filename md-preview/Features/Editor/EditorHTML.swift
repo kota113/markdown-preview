@@ -701,6 +701,9 @@ nonisolated enum EditorHTML {
                     {
                         pageScrolling: \(usesPageScrolling),
                         onDirty: function () { post("dirty"); },
+                        onSelectionChange: function (text) {
+                            post({ kind: "selectionChange", text: text });
+                        },
                         onCopyCode: function (text) { post({ kind: "copyCode", value: text }); },
                         onFormattingChange: function (state) {
                             post({ kind: "formattingState", heading: state.heading, commands: state.commands });

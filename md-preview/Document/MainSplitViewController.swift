@@ -100,7 +100,15 @@ final class MainSplitViewController: NSSplitViewController {
             assetBaseURL: assetBaseURL
         )
         sidebarViewController?.display(markdown: markdown, fileName: fileName, fileURL: url)
+        if !isEditingDocument {
+            inspectorViewController?.displaySelectedText(nil)
+        }
         inspectorViewController?.display(metadata: DocumentMetadata.make(url: url, markdown: markdown))
+    }
+
+    /// Show selection statistics independently of the document metadata.
+    func displayInspectorSelection(_ selectedText: String?) {
+        inspectorViewController?.displaySelectedText(selectedText)
     }
 
     /// URL-only refresh after a rename. Skips the content re-render so

@@ -192,6 +192,7 @@
 "Document Type" = "文稿类型";
 "Markdown Document" = "Markdown 文稿";
 "File Size" = "文件大小";
+"(Selected)" = "(所选内容)";
 "Words" = "单词数";
 "Characters" = "字符数";
 "Lines" = "行数";

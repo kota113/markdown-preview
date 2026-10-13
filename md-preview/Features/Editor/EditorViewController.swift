@@ -18,6 +18,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
     /// Fired on every document change — the host debounces for autosave.
     var contentDidChange: (() -> Void)?
     var formattingDidChange: ((Int, Set<String>) -> Void)?
+    var selectionDidChange: ((String?) -> Void)?
     /// Fired after CodeMirror has constructed and painted its initial document.
     /// The split view uses this to avoid replacing the preview with a blank WKWebView.
     var editorDidBecomeReady: (() -> Void)?
@@ -446,6 +447,12 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                   (0...6).contains(heading),
                   let commands = payload["commands"] as? [String] else { return }
             formattingDidChange?(heading, Set(commands))
+        case "selectionChange":
+            if let selected = payload["text"] as? String {
+                selectionDidChange?(selected)
+            } else if payload["text"] is NSNull {
+                selectionDidChange?(nil)
+            }
         case "findResult":
             guard let index = payload["index"] as? Int,
                   let total = payload["total"] as? Int else { return }
