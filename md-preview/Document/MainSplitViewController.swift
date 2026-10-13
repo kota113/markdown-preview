@@ -103,6 +103,13 @@ final class MainSplitViewController: NSSplitViewController {
         inspectorViewController?.display(metadata: DocumentMetadata.make(url: url, markdown: markdown))
     }
 
+    /// Refresh document statistics without re-rendering the preview.
+    func refreshInspector(markdown: String, fileURL: URL?) {
+        inspectorViewController?.display(
+            metadata: DocumentMetadata.make(url: fileURL, markdown: markdown)
+        )
+    }
+
     /// URL-only refresh after a rename. Skips the content re-render so
     /// the preview, scroll position, and active-heading highlight stay
     /// put.
