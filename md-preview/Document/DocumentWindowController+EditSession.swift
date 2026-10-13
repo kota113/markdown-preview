@@ -74,7 +74,7 @@ extension DocumentWindowController {
                       self.editorChangeRevision == revision,
                       self.currentFileURL == fileURL,
                       self.mainSplit?.editorViewController === editor else { return }
-                self.mainSplit?.refreshInspector(markdown: markdown, fileURL: fileURL)
+                self.mainSplit?.refreshDocumentSidebars(markdown: markdown, fileURL: fileURL)
             }
         }
         pendingInspectorRefresh = work
@@ -389,7 +389,7 @@ extension DocumentWindowController {
             // Refresh on successful writes as well, so on-disk size and
             // modification time advance even when edit mode stays open.
             if revision == nil || revision == editorChangeRevision {
-                mainSplit?.refreshInspector(markdown: body, fileURL: currentFileURL)
+                mainSplit?.refreshDocumentSidebars(markdown: body, fileURL: currentFileURL)
             }
             completeSuccessfulEditorCommit(exitAfter: exitAfter, rerender: true)
         case let .reloaded(externalMarkdown):

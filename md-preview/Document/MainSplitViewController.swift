@@ -103,8 +103,14 @@ final class MainSplitViewController: NSSplitViewController {
         inspectorViewController?.display(metadata: DocumentMetadata.make(url: url, markdown: markdown))
     }
 
-    /// Refresh document statistics without re-rendering the preview.
-    func refreshInspector(markdown: String, fileURL: URL?) {
+    /// Refresh the Inspector and outline from the latest unsaved editor source.
+    /// The preview stays untouched until the user leaves edit mode.
+    func refreshDocumentSidebars(markdown: String, fileURL: URL?) {
+        sidebarViewController?.refreshOutline(
+            markdown: markdown,
+            fileName: fileURL?.lastPathComponent
+                ?? NSLocalizedString("Untitled", comment: "Untitled document name")
+        )
         inspectorViewController?.display(
             metadata: DocumentMetadata.make(url: fileURL, markdown: markdown)
         )
