@@ -54,27 +54,38 @@ extension DocumentWindowController {
         updateEditToolbarItem()
     }
 
-    /// Update the inspector periodically while typing, without re-rendering the
-    /// preview or waiting for the editor's next save.
+    /// Update the Inspector and outline periodically, serializing WebKit
+    /// requests so edits cannot start overlapping metadata refreshes.
     private func scheduleInspectorRefresh(from editor: EditorViewController) {
-        guard pendingInspectorRefresh == nil else { return }
+        guard pendingInspectorRefresh == nil, !inspectorRefreshInFlight else { return }
         let sessionID = inspectorRefreshSessionID
         let work = DispatchWorkItem { [weak self, weak editor] in
-            guard let self else { return }
-            self.pendingInspectorRefresh = nil
-            guard let editor,
+            guard let self, let editor,
                   self.inspectorRefreshSessionID == sessionID,
                   self.mainSplit?.editorViewController === editor else { return }
+            self.pendingInspectorRefresh = nil
+            self.inspectorRefreshInFlight = true
 
             let revision = self.editorChangeRevision
             let fileURL = self.currentFileURL
             editor.fetchMarkdown { [weak self, weak editor] markdown in
-                guard let self, let editor, let markdown,
-                      self.inspectorRefreshSessionID == sessionID,
-                      self.editorChangeRevision == revision,
-                      self.currentFileURL == fileURL,
-                      self.mainSplit?.editorViewController === editor else { return }
-                self.mainSplit?.refreshDocumentSidebars(markdown: markdown, fileURL: fileURL)
+                guard let self, self.inspectorRefreshSessionID == sessionID else { return }
+                self.inspectorRefreshInFlight = false
+
+                if let editor, let markdown,
+                   self.editorChangeRevision == revision,
+                   self.currentFileURL == fileURL,
+                   self.mainSplit?.editorViewController === editor {
+                    self.mainSplit?.refreshDocumentSidebars(markdown: markdown, fileURL: fileURL)
+                }
+
+                // Edits received during the fetch were coalesced. Fetch the
+                // latest revision once the current request has finished.
+                if let editor, self.editorChangeRevision != revision,
+                   self.currentFileURL == fileURL,
+                   self.mainSplit?.editorViewController === editor {
+                    self.scheduleInspectorRefresh(from: editor)
+                }
             }
         }
         pendingInspectorRefresh = work
@@ -84,6 +95,7 @@ extension DocumentWindowController {
     private func cancelInspectorRefresh() {
         pendingInspectorRefresh?.cancel()
         pendingInspectorRefresh = nil
+        inspectorRefreshInFlight = false
         // Also invalidates any WKWebView fetch still in flight.
         inspectorRefreshSessionID = UUID()
     }
