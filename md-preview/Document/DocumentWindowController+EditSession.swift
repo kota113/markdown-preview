@@ -17,6 +17,7 @@ extension DocumentWindowController {
         }
 
         cancelInspectorRefresh()
+        split.updateInspectorSelection(nil)
 
         // Edit the complete source. Frontmatter is stripped only by the
         // read-only renderer; the editor must expose and preserve it.
@@ -36,8 +37,9 @@ extension DocumentWindowController {
             self.startAutoSaveTimerIfNeeded()
             self.scheduleInspectorRefresh(from: editor)
         }
-        editor.formattingDidChange = { [weak self] heading, commands in
+        editor.formattingDidChange = { [weak self] heading, commands, selection in
             self?.updateFormattingSelection(heading: heading, commands: commands)
+            self?.mainSplit?.updateInspectorSelection(selection)
         }
         editor.pasteImageRequested = { [weak self] from, to in
             self?.pasteImage(at: from, replacing: to)
@@ -54,38 +56,27 @@ extension DocumentWindowController {
         updateEditToolbarItem()
     }
 
-    /// Update the Inspector and outline periodically, serializing WebKit
-    /// requests so edits cannot start overlapping metadata refreshes.
+    /// Update the inspector periodically while typing, without re-rendering the
+    /// preview or waiting for the editor's next save.
     private func scheduleInspectorRefresh(from editor: EditorViewController) {
-        guard pendingInspectorRefresh == nil, !inspectorRefreshInFlight else { return }
+        guard pendingInspectorRefresh == nil else { return }
         let sessionID = inspectorRefreshSessionID
         let work = DispatchWorkItem { [weak self, weak editor] in
-            guard let self, let editor,
+            guard let self else { return }
+            self.pendingInspectorRefresh = nil
+            guard let editor,
                   self.inspectorRefreshSessionID == sessionID,
                   self.mainSplit?.editorViewController === editor else { return }
-            self.pendingInspectorRefresh = nil
-            self.inspectorRefreshInFlight = true
 
             let revision = self.editorChangeRevision
             let fileURL = self.currentFileURL
             editor.fetchMarkdown { [weak self, weak editor] markdown in
-                guard let self, self.inspectorRefreshSessionID == sessionID else { return }
-                self.inspectorRefreshInFlight = false
-
-                if let editor, let markdown,
-                   self.editorChangeRevision == revision,
-                   self.currentFileURL == fileURL,
-                   self.mainSplit?.editorViewController === editor {
-                    self.mainSplit?.refreshDocumentSidebars(markdown: markdown, fileURL: fileURL)
-                }
-
-                // Edits received during the fetch were coalesced. Fetch the
-                // latest revision once the current request has finished.
-                if let editor, self.editorChangeRevision != revision,
-                   self.currentFileURL == fileURL,
-                   self.mainSplit?.editorViewController === editor {
-                    self.scheduleInspectorRefresh(from: editor)
-                }
+                guard let self, let editor, let markdown,
+                      self.inspectorRefreshSessionID == sessionID,
+                      self.editorChangeRevision == revision,
+                      self.currentFileURL == fileURL,
+                      self.mainSplit?.editorViewController === editor else { return }
+                self.mainSplit?.refreshDocumentSidebars(markdown: markdown, fileURL: fileURL)
             }
         }
         pendingInspectorRefresh = work
@@ -95,7 +86,6 @@ extension DocumentWindowController {
     private func cancelInspectorRefresh() {
         pendingInspectorRefresh?.cancel()
         pendingInspectorRefresh = nil
-        inspectorRefreshInFlight = false
         // Also invalidates any WKWebView fetch still in flight.
         inspectorRefreshSessionID = UUID()
     }
@@ -494,6 +484,7 @@ extension DocumentWindowController {
             return
         }
         cancelInspectorRefresh()
+        split.updateInspectorSelection(nil)
         split.editorViewController?.contentDidChange = nil
         split.editorViewController?.formattingDidChange = nil
         split.editorViewController?.cancelRequested = nil
