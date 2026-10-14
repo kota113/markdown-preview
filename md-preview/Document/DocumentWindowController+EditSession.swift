@@ -98,7 +98,7 @@ extension DocumentWindowController {
         guard needsOutline || needsMetadata else { return }
 
         pendingInspectorComputation?.cancel()
-        let work = DispatchWorkItem { [weak self] in
+        let work = DispatchWorkItem { @Sendable [weak self] in
             let outline = needsOutline ? MarkdownTOC.parse(markdown) : nil
             let metadata = needsMetadata ? DocumentMetadata.make(url: fileURL, markdown: markdown) : nil
             DispatchQueue.main.async { [weak self] in
