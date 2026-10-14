@@ -393,6 +393,69 @@ final class MdPreviewUpdateTests: XCTestCase {
     /// and count runs so a destructive re-render (fresh node, count reset)
     /// is detectable.
     @MainActor
+    func testReaderSelectionReportsOnlyArticleTextAndClearsWhenDeselected() async throws {
+        let webView = try await loadHarness(articleAttributes: "", stubsWebKitMessageHandler: true)
+        let article = MarkdownHTML.render(
+            markdown: "First 😀 paragraph.\n\nSecond paragraph.",
+            vendorLoading: .lazy
+        ).articleHTML
+        _ = try await webView.evaluateJavaScript(
+            "window.MdPreview.update(\(MarkdownHTML.javaScriptStringLiteral(article))); true"
+        )
+        let result = try await webView.evaluateJavaScript("""
+        (() => {
+            const article = document.querySelector('article.markdown-body');
+            const outside = document.createElement('div');
+            outside.textContent = 'Not part of the article';
+            document.body.appendChild(outside);
+            window.__hostMessages = [];
+            const selection = window.getSelection();
+            function selectContents(node) {
+                const range = document.createRange();
+                range.selectNodeContents(node);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                document.dispatchEvent(new Event('selectionchange'));
+            }
+            function reported() {
+                return window.__hostMessages.filter(m => m.kind === 'selectedText').map(m => m.value);
+            }
+            selectContents(article.querySelector('p'));
+            const first = reported();
+            document.dispatchEvent(new Event('selectionchange'));
+            const repeated = reported();
+            selectContents(outside);
+            const outsideResult = reported();
+            selectContents(document.body);
+            const wholeBody = reported();
+            selection.removeAllRanges();
+            document.dispatchEvent(new Event('selectionchange'));
+            const cleared = reported();
+            selectContents(article.querySelector('p'));
+            window.MdPreview.update('<p>Replacement document</p>');
+            const replaced = reported();
+            return JSON.stringify({ first, repeated, outsideResult, wholeBody, cleared, replaced });
+        })()
+        """)
+        let json = try XCTUnwrap(result as? String)
+        let state = try JSONDecoder().decode(ReaderSelectionMessages.self, from: Data(json.utf8))
+        XCTAssertEqual(state.first, ["First 😀 paragraph."])
+        XCTAssertEqual(state.repeated.count, state.first.count,
+                       "Duplicate selection events should be ignored")
+        XCTAssertEqual(state.outsideResult.count, state.first.count + 1)
+        XCTAssertNil(state.outsideResult.last ?? nil)
+        XCTAssertEqual(state.wholeBody.count, state.outsideResult.count + 1)
+        let articleText = try XCTUnwrap(state.wholeBody.last ?? nil)
+        XCTAssertTrue(articleText.contains("First 😀 paragraph."))
+        XCTAssertTrue(articleText.contains("Second paragraph."))
+        XCTAssertFalse(articleText.contains("Not part of the article"))
+        XCTAssertEqual(state.cleared.count, state.wholeBody.count + 1)
+        XCTAssertNil(state.cleared.last ?? nil)
+        XCTAssertEqual(state.replaced.count, state.cleared.count + 2)
+        XCTAssertNil(state.replaced.last ?? nil)
+    }
+
+    @MainActor
     private func loadHarness(
         articleAttributes: String,
         stubsWebKitMessageHandler: Bool = false
@@ -519,4 +582,13 @@ private struct WarmupArticleState: Decodable {
     private enum CodingKeys: String, CodingKey {
         case warmup, opacity, keyedBlocks, paragraphText
     }
+}
+
+private struct ReaderSelectionMessages: Decodable {
+    let first: [String?]
+    let repeated: [String?]
+    let outsideResult: [String?]
+    let wholeBody: [String?]
+    let cleared: [String?]
+    let replaced: [String?]
 }

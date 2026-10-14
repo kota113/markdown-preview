@@ -139,6 +139,33 @@ nonisolated extension MarkdownHTML {
 
         window.MdPreviewHost = { pushHeight, measureHeight };
 
+        // Mirror read-only text selections to the native Inspector. Only the
+        // rendered article counts, even when Select All includes page chrome.
+        let lastSelectedText = null;
+        function pushSelectedText() {
+            if (!hasHostBridge) return;
+            const article = document.querySelector('article.markdown-body');
+            const selection = window.getSelection();
+            let text = null;
+            if (article && selection && !selection.isCollapsed && selection.rangeCount) {
+                const range = selection.getRangeAt(0);
+                if (range.intersectsNode(article)) {
+                    const clipped = range.cloneRange();
+                    const bounds = document.createRange();
+                    bounds.selectNodeContents(article);
+                    if (clipped.compareBoundaryPoints(Range.START_TO_START, bounds) < 0)
+                        clipped.setStart(bounds.startContainer, bounds.startOffset);
+                    if (clipped.compareBoundaryPoints(Range.END_TO_END, bounds) > 0)
+                        clipped.setEnd(bounds.endContainer, bounds.endOffset);
+                    text = clipped.toString() || null;
+                }
+            }
+            if (text === lastSelectedText) return;
+            lastSelectedText = text;
+            post({ kind: 'selectedText', value: text });
+        }
+        document.addEventListener('selectionchange', pushSelectedText);
+
         function elementForEventTarget(target) {
             if (target instanceof Element) return target;
             if (target && target.parentElement instanceof Element) return target.parentElement;
@@ -740,6 +767,11 @@ nonisolated extension MarkdownHTML {
             }
             const article = document.querySelector('.markdown-body');
             if (!article) return;
+            // A document swap invalidates any selection from the old article.
+            if (lastSelectedText !== null) {
+                lastSelectedText = null;
+                post({ kind: 'selectedText', value: null });
+            }
             const tStart = perfNow();
             // DOM-diff fast path: morph the live article toward the incoming
             // HTML so finished Mermaid SVGs, KaTeX output, and highlighted
