@@ -131,6 +131,17 @@ final class MarkdownTOCTests: XCTestCase {
         XCTAssertEqual(titles, ["Background"])
     }
 
+    func testHeadingSourceLinesIncludeFrontmatterAndUnsavedInsertions() {
+        let original = "# First\n\n## Second"
+        let inserted = "# First\n\n# New\n\n## Second"
+        XCTAssertEqual(flattened(MarkdownTOC.parse(original)).compactMap(\.sourceLine), [1, 3])
+        XCTAssertEqual(flattened(MarkdownTOC.parse(inserted)).compactMap(\.sourceLine), [1, 3, 5])
+
+        // Both empty frontmatter and blank lines inside it must be accounted for.
+        let withFrontmatter = "---\n\ntitle: Example\n---\n# First\n\nSetext\n------"
+        XCTAssertEqual(flattened(MarkdownTOC.parse(withFrontmatter)).compactMap(\.sourceLine), [5, 7])
+    }
+
     func testOutlineIDsAndLevelsMatchRenderedArticle() throws {
         let markdown = """
         ---

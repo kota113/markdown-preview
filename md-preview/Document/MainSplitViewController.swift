@@ -45,10 +45,17 @@ final class MainSplitViewController: NSSplitViewController {
         super.viewDidLoad()
 
         let sidebarVC = SidebarViewController()
-        sidebarVC.onSelectHeading = { [weak self] index in
-            // Pin before scrolling so a no-op scroll still confirms the click.
-            self?.contentViewController?.markHeadingActiveFromClick(index)
-            self?.contentViewController?.scrollToHeading(index: index)
+        sidebarVC.onSelectHeading = { [weak self] index, sourceLine in
+            guard let self else { return }
+            if self.isEditingDocument {
+                // The preview behind the editor can contain older headings.
+                guard self.isEditorVisible, let sourceLine else { return }
+                self.cachedEditorViewController?.scrollToSourceLine(sourceLine)
+            } else {
+                // Pin before scrolling so a no-op scroll still confirms the click.
+                self.contentViewController?.markHeadingActiveFromClick(index)
+                self.contentViewController?.scrollToHeading(index: index)
+            }
         }
         sidebarVC.onSelectFile = { [weak self] url in
             self?.onSelectFile?(url)

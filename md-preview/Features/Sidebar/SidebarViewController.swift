@@ -12,7 +12,7 @@ final class SidebarViewController: NSViewController {
         case files = 1
     }
 
-    var onSelectHeading: ((Int) -> Void)?
+    var onSelectHeading: ((Int, Int?) -> Void)?
     var onSelectFile: ((URL) -> Void)?
     var onModeChanged: ((Mode) -> Void)?
 
@@ -310,7 +310,7 @@ final class SidebarViewController: NSViewController {
     @objc private func rowClicked(_ sender: Any?) {
         let row = outlineView.clickedRow
         guard row >= 0, let node = outlineView.item(atRow: row) as? TOCNode else { return }
-        onSelectHeading?(node.headingID)
+        onSelectHeading?(node.headingID, node.sourceLine)
     }
 }
 
@@ -336,12 +336,14 @@ final class TOCNode {
     let headingID: Int
     let level: Int
     let title: String
+    let sourceLine: Int?
     let children: [TOCNode]
 
     init(_ item: TOCItem) {
         self.headingID = item.id
         self.level = item.level
         self.title = item.title
+        self.sourceLine = item.sourceLine
         self.children = item.children.map(TOCNode.init)
     }
 }
