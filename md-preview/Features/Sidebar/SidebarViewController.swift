@@ -159,15 +159,80 @@ final class SidebarViewController: NSViewController {
     private func displayOutline(_ outline: [TOCItem], fileName: String) {
         loadViewIfNeeded()
         guard outline != lastRenderedOutline || fileName != lastRenderedFileName else { return }
+
+        // Source lines can change without altering the visible heading tree.
+        // Update click destinations in place rather than resetting outline UI.
+        if fileName == lastRenderedFileName, updateSourceLines(outline, in: roots) {
+            lastRenderedOutline = outline
+            return
+        }
+
+        // Match headings by their hierarchy and sibling occurrence, not their
+        // shifting source lines or document-order IDs.
+        let previous = outlineEntries(in: roots)
+        let selectedNode = outlineView.selectedRow >= 0
+            ? outlineView.item(atRow: outlineView.selectedRow) as? TOCNode : nil
+        let selectedKey = previous.first { $0.node === selectedNode }?.key
+        let expandedKeys = Set(previous.filter { outlineView.isItemExpanded($0.node) }.map(\.key))
+        let existingKeys = Set(previous.map(\.key))
+
         lastRenderedOutline = outline
         lastRenderedFileName = fileName
         titleItem = fileName.isEmpty ? nil : TitleItem(title: fileName)
         roots = outline.map(TOCNode.init)
         outlineView.reloadData()
-        for root in roots {
-            outlineView.expandItem(root, expandChildren: true)
+
+        let current = outlineEntries(in: roots)
+        // Newly introduced branches default to expanded, as before.
+        for entry in current where expandedKeys.contains(entry.key) || !existingKeys.contains(entry.key) {
+            outlineView.expandItem(entry.node)
         }
-        outlineView.deselectAll(nil)
+        if let selectedKey, let node = current.first(where: { $0.key == selectedKey })?.node {
+            let row = outlineView.row(forItem: node)
+            if row >= 0 {
+                outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+            }
+        }
+        refreshRowTextColors()
+    }
+
+    /// Reuse the existing outline rows when only source locations changed.
+    private func updateSourceLines(_ items: [TOCItem], in nodes: [TOCNode]) -> Bool {
+        guard items.count == nodes.count else { return false }
+        for (item, node) in zip(items, nodes) {
+            guard item.id == node.headingID, item.level == node.level, item.title == node.title,
+                  updateSourceLines(item.children, in: node.children) else { return false }
+            node.sourceLine = item.sourceLine
+        }
+        return true
+    }
+
+    private struct OutlineKey: Hashable {
+        struct Segment: Hashable {
+            let level: Int
+            let title: String
+            let occurrence: Int
+        }
+        let path: [Segment]
+    }
+
+    private func outlineEntries(in nodes: [TOCNode]) -> [(key: OutlineKey, node: TOCNode)] {
+        var result: [(key: OutlineKey, node: TOCNode)] = []
+        func visit(_ siblings: [TOCNode], path: [OutlineKey.Segment]) {
+            var occurrences: [OutlineKey.Segment: Int] = [:]
+            for node in siblings {
+                let label = OutlineKey.Segment(level: node.level, title: node.title, occurrence: 0)
+                let count = occurrences[label, default: 0]
+                occurrences[label] = count + 1
+                let childPath = path + [OutlineKey.Segment(
+                    level: node.level, title: node.title, occurrence: count
+                )]
+                result.append((key: OutlineKey(path: childPath), node: node))
+                visit(node.children, path: childPath)
+            }
+        }
+        visit(nodes, path: [])
+        return result
     }
 
     /// Update the tracked file URL after a rename — keeps the navigator
@@ -336,7 +401,7 @@ final class TOCNode {
     let headingID: Int
     let level: Int
     let title: String
-    let sourceLine: Int?
+    var sourceLine: Int?
     let children: [TOCNode]
 
     init(_ item: TOCItem) {
