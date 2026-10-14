@@ -46,7 +46,7 @@ final class EditorFormattingTests: XCTestCase {
     func testSelectionContextPublishesNativeTableCellSelection() async throws {
         let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
         let recorder = InspectorSelectionRecorder()
-        let source = "Before\\n\\n| Label |\\n| --- |\\n| Ada |\\n\\nAfter"
+        let source = "Before\n\n| Label |\n| --- |\n| Ada |\n\nAfter"
         let editor = WebViewLayoutHarness(
             html: EditorHTML.render(markdown: source, editorJavaScript: script),
             width: 650, isEditor: true, height: 400, messageHandler: recorder)
@@ -82,7 +82,8 @@ final class EditorFormattingTests: XCTestCase {
         }
         XCTAssertGreaterThan(recorder.selectedTexts.count, count)
         XCTAssertNil(recorder.selectedTexts.last ?? nil)
-        XCTAssertEqual(try await editor.webView.evaluateJavaScript("window.__mdEditor.getMarkdown()") as? String, source)
+        let current = try await editor.webView.evaluateJavaScript("window.__mdEditor.getMarkdown()")
+        XCTAssertEqual(current as? String, source)
     }
 
     func testFormattingMissingTableCellsDoesNotTargetBodySelection() async throws {
