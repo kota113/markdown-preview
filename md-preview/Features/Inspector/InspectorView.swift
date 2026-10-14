@@ -21,7 +21,7 @@ nonisolated struct DocumentMetadata: Equatable, Sendable {
 }
 
 extension DocumentMetadata {
-    static func make(url: URL?, markdown: String) -> DocumentMetadata {
+    nonisolated static func make(url: URL?, markdown: String) -> DocumentMetadata {
         var meta = DocumentMetadata()
         meta.fileURL = url
         meta.fileName = url?.lastPathComponent

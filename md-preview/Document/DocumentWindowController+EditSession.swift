@@ -101,7 +101,7 @@ extension DocumentWindowController {
         let work = DispatchWorkItem { @Sendable [weak self] in
             let outline = needsOutline ? MarkdownTOC.parse(markdown) : nil
             let metadata = needsMetadata ? DocumentMetadata.make(url: fileURL, markdown: markdown) : nil
-            DispatchQueue.main.async { [weak self] in
+            DispatchQueue.main.async {
                 guard let self,
                       self.inspectorRefreshSessionID == sessionID,
                       self.editorChangeRevision == revision,
