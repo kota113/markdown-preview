@@ -141,18 +141,26 @@ final class SidebarViewController: NSViewController {
         refreshOutline(markdown: markdown, fileName: fileName)
     }
 
-    /// Keep the table of contents in sync with unsaved editor text without
-    /// reloading the outline (and clearing its selection) for body-only edits.
+    /// Full document display may parse synchronously; live edits supply a
+    /// precomputed outline so parsing stays off the main thread.
     func refreshOutline(markdown: String, fileName: String) {
-        loadViewIfNeeded()
         guard markdown != lastRenderedMarkdown || fileName != lastRenderedFileName else { return }
         let outline = MarkdownTOC.parse(markdown)
-        let outlineChanged = outline != lastRenderedOutline || fileName != lastRenderedFileName
         lastRenderedMarkdown = markdown
-        lastRenderedFileName = fileName
-        guard outlineChanged else { return }
+        displayOutline(outline, fileName: fileName)
+    }
 
+    func refreshOutline(outline: [TOCItem], fileName: String) {
+        // Invalidate the full-source cache: its value predates this live outline.
+        lastRenderedMarkdown = nil
+        displayOutline(outline, fileName: fileName)
+    }
+
+    private func displayOutline(_ outline: [TOCItem], fileName: String) {
+        loadViewIfNeeded()
+        guard outline != lastRenderedOutline || fileName != lastRenderedFileName else { return }
         lastRenderedOutline = outline
+        lastRenderedFileName = fileName
         titleItem = fileName.isEmpty ? nil : TitleItem(title: fileName)
         roots = outline.map(TOCNode.init)
         outlineView.reloadData()

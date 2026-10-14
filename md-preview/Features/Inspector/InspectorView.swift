@@ -6,7 +6,7 @@
 import AppKit
 import SwiftUI
 
-struct DocumentMetadata: Equatable {
+nonisolated struct DocumentMetadata: Equatable, Sendable {
     var fileName: String = ""
     var fileURL: URL?
     var wordCount: Int = 0

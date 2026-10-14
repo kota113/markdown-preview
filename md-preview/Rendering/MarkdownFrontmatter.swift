@@ -5,7 +5,7 @@
 
 import Foundation
 
-struct FrontmatterEntry: Equatable, Identifiable {
+nonisolated struct FrontmatterEntry: Equatable, Identifiable, Sendable {
     let id: Int
     let key: String
     let value: String

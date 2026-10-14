@@ -24,12 +24,17 @@ extension DocumentWindowController {
             autofocus: autofocus
         )
         invalidateInspectorRefresh()
+        split.onLiveMetadataNeedsRefresh = { [weak self, weak editor] in
+            guard let self, let editor else { return }
+            self.scheduleInspectorRefresh(from: editor)
+        }
         editor.cancelRequested = { [weak self] in
             self?.previewPendingEdits()
         }
         editor.contentDidChange = { [weak self, weak editor] in
             guard let self, let editor else { return }
             self.editorChangeRevision += 1
+            self.pendingInspectorComputation?.cancel()
             self.hasUnsavedEditorChanges = true
             self.stopAutoSaveTimer()
             self.startAutoSaveTimerIfNeeded()
@@ -53,10 +58,12 @@ extension DocumentWindowController {
         updateEditToolbarItem()
     }
 
-    /// Update the inspector periodically while typing, without re-rendering the
-    /// preview or waiting for the editor's next save.
+    /// Throttle editor snapshots and refresh only the currently visible panes.
     private func scheduleInspectorRefresh(from editor: EditorViewController) {
-        guard pendingInspectorRefresh == nil else { return }
+        guard pendingInspectorRefresh == nil,
+              let split = mainSplit,
+              split.isInspectorVisible
+                || (split.isSidebarVisible && split.sidebarMode == .outline) else { return }
         let sessionID = inspectorRefreshSessionID
         let work = DispatchWorkItem { [weak self, weak editor] in
             guard let self else { return }
@@ -73,17 +80,48 @@ extension DocumentWindowController {
                       self.editorChangeRevision == revision,
                       self.currentFileURL == fileURL,
                       self.mainSplit?.editorViewController === editor else { return }
-                self.mainSplit?.refreshDocumentSidebars(markdown: markdown, fileURL: fileURL)
+                self.computeVisibleSidebars(markdown: markdown, fileURL: fileURL,
+                                            revision: revision, sessionID: sessionID)
             }
         }
         pendingInspectorRefresh = work
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.inspectorRefreshInterval, execute: work)
     }
 
+    /// Parse immutable editor text off the main thread; touch UI only when the
+    /// result still belongs to the active revision, file, and editing session.
+    private func computeVisibleSidebars(markdown: String, fileURL: URL?,
+                                        revision: Int, sessionID: UUID) {
+        guard let split = mainSplit else { return }
+        let needsOutline = split.isSidebarVisible && split.sidebarMode == .outline
+        let needsMetadata = split.isInspectorVisible
+        guard needsOutline || needsMetadata else { return }
+
+        pendingInspectorComputation?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            let outline = needsOutline ? MarkdownTOC.parse(markdown) : nil
+            let metadata = needsMetadata ? DocumentMetadata.make(url: fileURL, markdown: markdown) : nil
+            DispatchQueue.main.async { [weak self] in
+                guard let self,
+                      self.inspectorRefreshSessionID == sessionID,
+                      self.editorChangeRevision == revision,
+                      self.currentFileURL == fileURL,
+                      self.mainSplit?.editorViewController != nil else { return }
+                self.mainSplit?.applyLiveSidebarUpdates(
+                    outline: outline, metadata: metadata, fileURL: fileURL
+                )
+            }
+        }
+        pendingInspectorComputation = work
+        inspectorComputationQueue.async(execute: work)
+    }
+
     private func invalidateInspectorRefresh() {
         pendingInspectorRefresh?.cancel()
         pendingInspectorRefresh = nil
-        // Also invalidates any WKWebView fetch still in flight.
+        pendingInspectorComputation?.cancel()
+        pendingInspectorComputation = nil
+        // Also invalidates any WKWebView fetch or background calculation in flight.
         inspectorRefreshSessionID = UUID()
     }
 
@@ -388,7 +426,9 @@ extension DocumentWindowController {
             // Refresh on successful writes as well, so on-disk size and
             // modification time advance even when edit mode stays open.
             if revision == nil || revision == editorChangeRevision {
-                mainSplit?.refreshDocumentSidebars(markdown: body, fileURL: currentFileURL)
+                computeVisibleSidebars(markdown: body, fileURL: currentFileURL,
+                                       revision: editorChangeRevision,
+                                       sessionID: inspectorRefreshSessionID)
             }
             completeSuccessfulEditorCommit(exitAfter: exitAfter, rerender: true)
         case let .reloaded(externalMarkdown):
@@ -486,6 +526,7 @@ extension DocumentWindowController {
         split.editorViewController?.pasteImageRequested = nil
         split.editorViewController?.imageClicked = nil
         invalidateInspectorRefresh()
+        split.onLiveMetadataNeedsRefresh = nil
         documentWindow.makeFirstResponder(nil)
         let overlayHidden: @MainActor () -> Void = { [weak self] in
             if hidesAccessoryAfterSwap { self?.dismissEditChrome() }

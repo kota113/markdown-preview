@@ -38,6 +38,8 @@ final class MainSplitViewController: NSSplitViewController {
     var onSelectFile: ((URL) -> Void)?
     var onOpenMarkdownLink: ((URL) -> Void)?
     private var sidebarCollapseObservation: NSKeyValueObservation?
+    private var inspectorCollapseObservation: NSKeyValueObservation?
+    var onLiveMetadataNeedsRefresh: (() -> Void)?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -50,6 +52,10 @@ final class MainSplitViewController: NSSplitViewController {
         }
         sidebarVC.onSelectFile = { [weak self] url in
             self?.onSelectFile?(url)
+        }
+        sidebarVC.onModeChanged = { [weak self] mode in
+            guard mode == .outline, self?.isSidebarVisible == true else { return }
+            self?.onLiveMetadataNeedsRefresh?()
         }
         let sidebar = Self.makeSidebarItem(for: sidebarVC, themed: false)
 
@@ -68,7 +74,17 @@ final class MainSplitViewController: NSSplitViewController {
 
         sidebarCollapseObservation = sidebar.observe(\.isCollapsed, options: [.new]) { [weak self] _, _ in
             DispatchQueue.main.async { [weak self] in
-                (self?.view.window?.windowController as? DocumentWindowController)?.syncSidebarToolbarState()
+                guard let self else { return }
+                (self.view.window?.windowController as? DocumentWindowController)?.syncSidebarToolbarState()
+                if self.isSidebarVisible && self.sidebarMode == .outline {
+                    self.onLiveMetadataNeedsRefresh?()
+                }
+            }
+        }
+        inspectorCollapseObservation = inspector.observe(\.isCollapsed, options: [.new]) { [weak self] _, _ in
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.isInspectorVisible else { return }
+                self.onLiveMetadataNeedsRefresh?()
             }
         }
 
@@ -103,17 +119,18 @@ final class MainSplitViewController: NSSplitViewController {
         inspectorViewController?.display(metadata: DocumentMetadata.make(url: url, markdown: markdown))
     }
 
-    /// Refresh the Inspector and outline from the latest unsaved editor source.
-    /// The preview stays untouched until the user leaves edit mode.
-    func refreshDocumentSidebars(markdown: String, fileURL: URL?) {
-        sidebarViewController?.refreshOutline(
-            markdown: markdown,
-            fileName: fileURL?.lastPathComponent
-                ?? NSLocalizedString("Untitled", comment: "Untitled document name")
-        )
-        inspectorViewController?.display(
-            metadata: DocumentMetadata.make(url: fileURL, markdown: markdown)
-        )
+    /// Apply already-computed live results; AppKit and SwiftUI remain on main.
+    func applyLiveSidebarUpdates(outline: [TOCItem]?, metadata: DocumentMetadata?, fileURL: URL?) {
+        if let outline, isSidebarVisible && sidebarMode == .outline {
+            sidebarViewController?.refreshOutline(
+                outline: outline,
+                fileName: fileURL?.lastPathComponent
+                    ?? NSLocalizedString("Untitled", comment: "Untitled document name")
+            )
+        }
+        if let metadata, isInspectorVisible {
+            inspectorViewController?.display(metadata: metadata)
+        }
     }
 
     /// URL-only refresh after a rename. Skips the content re-render so

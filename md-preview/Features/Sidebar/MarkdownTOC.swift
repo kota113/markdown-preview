@@ -6,14 +6,14 @@
 import Foundation
 import Markdown
 
-struct TOCItem: Identifiable, Hashable {
+nonisolated struct TOCItem: Identifiable, Hashable, Sendable {
     let id: Int
     let level: Int
     let title: String
     var children: [TOCItem]
 }
 
-enum MarkdownTOC {
+nonisolated enum MarkdownTOC {
 
     static func parse(_ markdown: String) -> [TOCItem] {
         let headings = extractHeadings(from: markdown)
