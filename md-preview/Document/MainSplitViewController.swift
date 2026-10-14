@@ -100,7 +100,13 @@ final class MainSplitViewController: NSSplitViewController {
             assetBaseURL: assetBaseURL
         )
         sidebarViewController?.display(markdown: markdown, fileName: fileName, fileURL: url)
+        inspectorViewController?.setSelectedText(nil)
         inspectorViewController?.display(metadata: DocumentMetadata.make(url: url, markdown: markdown))
+    }
+
+    /// Update selected-range statistics without refreshing the preview or TOC.
+    func updateInspectorSelection(_ text: String?) {
+        inspectorViewController?.setSelectedText(text)
     }
 
     /// URL-only refresh after a rename. Skips the content re-render so
