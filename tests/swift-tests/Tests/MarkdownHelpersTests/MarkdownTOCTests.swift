@@ -124,6 +124,13 @@ final class MarkdownTOCTests: XCTestCase {
         XCTAssertNotEqual(MarkdownTOC.parse(original), MarkdownTOC.parse(insertedHeading))
     }
 
+    func testOutlineCanParseOffMainActor() async {
+        let titles = await Task.detached {
+            MarkdownTOC.parse("# Background\n\nBody").map(\.title)
+        }.value
+        XCTAssertEqual(titles, ["Background"])
+    }
+
     func testOutlineIDsAndLevelsMatchRenderedArticle() throws {
         let markdown = """
         ---
