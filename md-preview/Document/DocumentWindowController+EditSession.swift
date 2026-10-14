@@ -23,7 +23,7 @@ extension DocumentWindowController {
             assetBaseURL: currentFileURL?.deletingLastPathComponent(),
             autofocus: autofocus
         )
-        cancelInspectorRefresh()
+        invalidateInspectorRefresh()
         editor.cancelRequested = { [weak self] in
             self?.previewPendingEdits()
         }
@@ -80,7 +80,7 @@ extension DocumentWindowController {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.inspectorRefreshInterval, execute: work)
     }
 
-    private func cancelInspectorRefresh() {
+    private func invalidateInspectorRefresh() {
         pendingInspectorRefresh?.cancel()
         pendingInspectorRefresh = nil
         // Also invalidates any WKWebView fetch still in flight.
@@ -403,7 +403,7 @@ extension DocumentWindowController {
     func adoptExternalMarkdown(_ markdown: String,
                               editor: EditorViewController?,
                               exitAfter: Bool) {
-        cancelInspectorRefresh()
+        invalidateInspectorRefresh()
         currentMarkdown = markdown
         editorDraftMarkdown = nil
         editorBaselineMarkdown = isEditing && !exitAfter ? markdown : nil
@@ -485,7 +485,7 @@ extension DocumentWindowController {
         split.editorViewController?.cancelRequested = nil
         split.editorViewController?.pasteImageRequested = nil
         split.editorViewController?.imageClicked = nil
-        cancelInspectorRefresh()
+        invalidateInspectorRefresh()
         documentWindow.makeFirstResponder(nil)
         let overlayHidden: @MainActor () -> Void = { [weak self] in
             if hidesAccessoryAfterSwap { self?.dismissEditChrome() }
