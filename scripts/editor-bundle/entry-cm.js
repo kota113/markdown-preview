@@ -702,7 +702,7 @@ function captureTableSelection(view) {
     selection: EditorSelection.single(target.anchor, target.head),
     extensions: [markdown({ extensions: obsidianHighlight })],
   })
-  tableFormattingCallbacks.get(view)?.(formattingState(state))
+  tableFormattingCallbacks.get(view)?.(selectionContext(state))
 }
 
 function prepareTableFormatting(view) {
@@ -2463,7 +2463,7 @@ function buildDecorations(view, detectedCodeCache) {
   return Decoration.set(ranges, true)
 }
 
-function formattingState(state) {
+function selectionContext(state) {
   const selection = state.selection.main
   const commands = new Set()
   let heading = 0
@@ -2477,7 +2477,11 @@ function formattingState(state) {
       FencedCode: 'fenced', CodeBlock: 'plain', Table: 'table' }[node.name]
     if (command) commands.add(command)
   }
-  return { heading, commands: [...commands].sort() }
+  return {
+    heading,
+    commands: [...commands].sort(),
+    selectedText: selection.empty ? null : state.sliceDoc(selection.from, selection.to),
+  }
 }
 
 const livePreview = ViewPlugin.fromClass(class {
@@ -3052,7 +3056,7 @@ window.MDEditor = {
             if (callbacks?.onFormattingChange && (update.selectionSet || update.docChanged
                 || update.focusChanged || syntaxTree(update.startState) !== syntaxTree(update.state))) {
               if (tableFormattingTargets.has(view)) captureTableSelection(view)
-              else callbacks.onFormattingChange(formattingState(update.state))
+              else callbacks.onFormattingChange(selectionContext(update.state))
             }
             if (update.docChanged && callbacks?.onSearchChange) {
               const search = update.state.field(documentFind)
@@ -3137,7 +3141,7 @@ window.MDEditor = {
     }
     if (callbacks?.onCopyCode) codeCopyHandlers.set(view, callbacks.onCopyCode)
     if (callbacks?.onFormattingChange) tableFormattingCallbacks.set(view, callbacks.onFormattingChange)
-    callbacks?.onFormattingChange?.(formattingState(view.state))
+    callbacks?.onFormattingChange?.(selectionContext(view.state))
     return {
       getMarkdown: () => view.state.doc.toString(),
       getBlockStyle: () => tableFormattingTargets.has(view) ? 'table' : stylingContext(view.state).style,

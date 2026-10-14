@@ -43,6 +43,48 @@ final class EditorFormattingTests: XCTestCase {
         XCTAssertEqual(current as? String, source)
     }
 
+    func testSelectionContextPublishesNativeTableCellSelection() async throws {
+        let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
+        let recorder = InspectorSelectionRecorder()
+        let source = "Before\\n\\n| Label |\\n| --- |\\n| Ada |\\n\\nAfter"
+        let editor = WebViewLayoutHarness(
+            html: EditorHTML.render(markdown: source, editorJavaScript: script),
+            width: 650, isEditor: true, height: 400, messageHandler: recorder)
+        defer { editor.close() }
+        _ = try await editor.layout(texts: [], imageCount: 0)
+
+        let selected = try await editor.webView.evaluateJavaScript("""
+            (() => {
+                const cell = document.querySelector('[data-table-row="1"][data-table-column="0"]');
+                cell.focus();
+                cell.replaceChildren(document.createTextNode('Ada | 🙂'));
+                window.getSelection().setBaseAndExtent(cell.firstChild, 4, cell.firstChild, 8);
+                document.dispatchEvent(new Event('selectionchange'));
+                return window.getSelection().toString();
+            })()
+            """)
+        XCTAssertEqual(selected as? String, "| 🙂")
+        for _ in 0..<30 where !recorder.selectedTexts.contains(where: { $0 == "| 🙂" }) {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertTrue(recorder.selectedTexts.contains(where: { $0 == "| 🙂" }))
+
+        let count = recorder.selectedTexts.count
+        _ = try await editor.webView.evaluateJavaScript("""
+            (() => {
+                const cell = document.querySelector('[data-table-row="1"][data-table-column="0"]');
+                window.getSelection().setBaseAndExtent(cell.firstChild, 8, cell.firstChild, 8);
+                document.dispatchEvent(new Event('selectionchange'));
+            })()
+            """)
+        for _ in 0..<30 where recorder.selectedTexts.count <= count {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertGreaterThan(recorder.selectedTexts.count, count)
+        XCTAssertNil(recorder.selectedTexts.last ?? nil)
+        XCTAssertEqual(try await editor.webView.evaluateJavaScript("window.__mdEditor.getMarkdown()") as? String, source)
+    }
+
     func testFormattingMissingTableCellsDoesNotTargetBodySelection() async throws {
         let script = try TestVendor.script("md-preview/Vendor/CodeMirror/mdedit.min.js")
         for command in ["bold", "keyboard", "link"] {

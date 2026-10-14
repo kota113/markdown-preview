@@ -703,13 +703,8 @@ nonisolated enum EditorHTML {
                         onDirty: function () { post("dirty"); },
                         onCopyCode: function (text) { post({ kind: "copyCode", value: text }); },
                         onFormattingChange: function (state) {
-                            // This callback also fires on CodeMirror selection changes.
-                            const editingCell = document.querySelector('.cm-md-table-cell[data-table-editing="true"]');
-                            const selected = editingCell
-                                ? window.getSelection()?.toString()
-                                : window.__mdEditor?.getLinkSelection(false)?.text;
                             post({ kind: "formattingState", heading: state.heading, commands: state.commands,
-                                   selectedText: selected || null });
+                                   selectedText: state.selectedText });
                         },
                         onSearchChange: function (result) {
                             post({ kind: "findResult", index: result.index, total: result.total });
