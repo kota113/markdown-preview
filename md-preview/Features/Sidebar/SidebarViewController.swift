@@ -25,6 +25,7 @@ final class SidebarViewController: NSViewController {
     private var lastRenderedMarkdown: String?
     private var lastRenderedFileName: String?
     private var lastRenderedOutline: [TOCItem] = []
+    private var resetOutlineState = false
     private var loadedFolderURL: URL?
     private var pendingFolderURL: URL?
     private var pendingFileURL: URL?
@@ -137,6 +138,10 @@ final class SidebarViewController: NSViewController {
 
     func display(markdown: String, fileName: String, fileURL: URL?) {
         loadViewIfNeeded()
+        // A newly opened document must not inherit another file's outline choices.
+        if pendingFileURL != fileURL?.standardizedFileURL {
+            resetOutlineState = true
+        }
         setOpenFileURL(fileURL)
         refreshOutline(markdown: markdown, fileName: fileName)
     }
@@ -144,7 +149,7 @@ final class SidebarViewController: NSViewController {
     /// Full document display may parse synchronously; live edits supply a
     /// precomputed outline so parsing stays off the main thread.
     func refreshOutline(markdown: String, fileName: String) {
-        guard markdown != lastRenderedMarkdown || fileName != lastRenderedFileName else { return }
+        guard resetOutlineState || markdown != lastRenderedMarkdown || fileName != lastRenderedFileName else { return }
         let outline = MarkdownTOC.parse(markdown)
         lastRenderedMarkdown = markdown
         displayOutline(outline, fileName: fileName)
@@ -158,18 +163,20 @@ final class SidebarViewController: NSViewController {
 
     private func displayOutline(_ outline: [TOCItem], fileName: String) {
         loadViewIfNeeded()
-        guard outline != lastRenderedOutline || fileName != lastRenderedFileName else { return }
+        guard resetOutlineState || outline != lastRenderedOutline || fileName != lastRenderedFileName else { return }
 
         // Source lines can change without altering the visible heading tree.
         // Update click destinations in place rather than resetting outline UI.
-        if fileName == lastRenderedFileName, updateSourceLines(outline, in: roots) {
+        if !resetOutlineState, fileName == lastRenderedFileName,
+           updateSourceLines(outline, in: roots) {
             lastRenderedOutline = outline
             return
         }
 
         // Match headings by their hierarchy and sibling occurrence, not their
         // shifting source lines or document-order IDs.
-        let previous = outlineEntries(in: roots)
+        let previous = resetOutlineState ? [] : outlineEntries(in: roots)
+        resetOutlineState = false
         let selectedNode = outlineView.selectedRow >= 0
             ? outlineView.item(atRow: outlineView.selectedRow) as? TOCNode : nil
         let selectedKey = previous.first { $0.node === selectedNode }?.key
