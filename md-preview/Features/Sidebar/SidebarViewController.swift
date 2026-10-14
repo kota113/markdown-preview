@@ -173,34 +173,17 @@ final class SidebarViewController: NSViewController {
             return
         }
 
-        // Match headings by their hierarchy and sibling occurrence, not their
-        // shifting source lines or document-order IDs.
-        let previous = resetOutlineState ? [] : outlineEntries(in: roots)
+        // The heading structure changed; use the original default expansion behavior.
         resetOutlineState = false
-        let selectedNode = outlineView.selectedRow >= 0
-            ? outlineView.item(atRow: outlineView.selectedRow) as? TOCNode : nil
-        let selectedKey = previous.first { $0.node === selectedNode }?.key
-        let expandedKeys = Set(previous.filter { outlineView.isItemExpanded($0.node) }.map(\.key))
-        let existingKeys = Set(previous.map(\.key))
-
         lastRenderedOutline = outline
         lastRenderedFileName = fileName
         titleItem = fileName.isEmpty ? nil : TitleItem(title: fileName)
         roots = outline.map(TOCNode.init)
         outlineView.reloadData()
-
-        let current = outlineEntries(in: roots)
-        // Newly introduced branches default to expanded, as before.
-        for entry in current where expandedKeys.contains(entry.key) || !existingKeys.contains(entry.key) {
-            outlineView.expandItem(entry.node)
+        for root in roots {
+            outlineView.expandItem(root, expandChildren: true)
         }
-        if let selectedKey, let node = current.first(where: { $0.key == selectedKey })?.node {
-            let row = outlineView.row(forItem: node)
-            if row >= 0 {
-                outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-            }
-        }
-        refreshRowTextColors()
+        outlineView.deselectAll(nil)
     }
 
     /// Reuse the existing outline rows when only source locations changed.
@@ -212,34 +195,6 @@ final class SidebarViewController: NSViewController {
             node.sourceLine = item.sourceLine
         }
         return true
-    }
-
-    private struct OutlineKey: Hashable {
-        struct Segment: Hashable {
-            let level: Int
-            let title: String
-            let occurrence: Int
-        }
-        let path: [Segment]
-    }
-
-    private func outlineEntries(in nodes: [TOCNode]) -> [(key: OutlineKey, node: TOCNode)] {
-        var result: [(key: OutlineKey, node: TOCNode)] = []
-        func visit(_ siblings: [TOCNode], path: [OutlineKey.Segment]) {
-            var occurrences: [OutlineKey.Segment: Int] = [:]
-            for node in siblings {
-                let label = OutlineKey.Segment(level: node.level, title: node.title, occurrence: 0)
-                let count = occurrences[label, default: 0]
-                occurrences[label] = count + 1
-                let childPath = path + [OutlineKey.Segment(
-                    level: node.level, title: node.title, occurrence: count
-                )]
-                result.append((key: OutlineKey(path: childPath), node: node))
-                visit(node.children, path: childPath)
-            }
-        }
-        visit(nodes, path: [])
-        return result
     }
 
     /// Update the tracked file URL after a rename — keeps the navigator
