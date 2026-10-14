@@ -23,14 +23,17 @@ extension DocumentWindowController {
             assetBaseURL: currentFileURL?.deletingLastPathComponent(),
             autofocus: autofocus
         )
+        cancelInspectorRefresh()
         editor.cancelRequested = { [weak self] in
             self?.previewPendingEdits()
         }
-        editor.contentDidChange = { [weak self] in
-            self?.editorChangeRevision += 1
-            self?.hasUnsavedEditorChanges = true
-            self?.stopAutoSaveTimer()
-            self?.startAutoSaveTimerIfNeeded()
+        editor.contentDidChange = { [weak self, weak editor] in
+            guard let self, let editor else { return }
+            self.editorChangeRevision += 1
+            self.hasUnsavedEditorChanges = true
+            self.stopAutoSaveTimer()
+            self.startAutoSaveTimerIfNeeded()
+            self.scheduleInspectorRefresh(from: editor)
         }
         editor.formattingDidChange = { [weak self] heading, commands in
             self?.updateFormattingSelection(heading: heading, commands: commands)
@@ -48,6 +51,40 @@ extension DocumentWindowController {
         }
         showEditAccessory()
         updateEditToolbarItem()
+    }
+
+    /// Update the inspector periodically while typing, without re-rendering the
+    /// preview or waiting for the editor's next save.
+    private func scheduleInspectorRefresh(from editor: EditorViewController) {
+        guard pendingInspectorRefresh == nil else { return }
+        let sessionID = inspectorRefreshSessionID
+        let work = DispatchWorkItem { [weak self, weak editor] in
+            guard let self else { return }
+            self.pendingInspectorRefresh = nil
+            guard let editor,
+                  self.inspectorRefreshSessionID == sessionID,
+                  self.mainSplit?.editorViewController === editor else { return }
+
+            let revision = self.editorChangeRevision
+            let fileURL = self.currentFileURL
+            editor.fetchMarkdown { [weak self, weak editor] markdown in
+                guard let self, let editor, let markdown,
+                      self.inspectorRefreshSessionID == sessionID,
+                      self.editorChangeRevision == revision,
+                      self.currentFileURL == fileURL,
+                      self.mainSplit?.editorViewController === editor else { return }
+                self.mainSplit?.refreshDocumentSidebars(markdown: markdown, fileURL: fileURL)
+            }
+        }
+        pendingInspectorRefresh = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.inspectorRefreshInterval, execute: work)
+    }
+
+    private func cancelInspectorRefresh() {
+        pendingInspectorRefresh?.cancel()
+        pendingInspectorRefresh = nil
+        // Also invalidates any WKWebView fetch still in flight.
+        inspectorRefreshSessionID = UUID()
     }
 
     /// Switches to preview without resolving the editing session. The preview
@@ -348,6 +385,11 @@ extension DocumentWindowController {
             if revision == nil || revision == editorChangeRevision {
                 hasUnsavedEditorChanges = false
             }
+            // Refresh on successful writes as well, so on-disk size and
+            // modification time advance even when edit mode stays open.
+            if revision == nil || revision == editorChangeRevision {
+                mainSplit?.refreshDocumentSidebars(markdown: body, fileURL: currentFileURL)
+            }
             completeSuccessfulEditorCommit(exitAfter: exitAfter, rerender: true)
         case let .reloaded(externalMarkdown):
             adoptExternalMarkdown(externalMarkdown,
@@ -361,6 +403,7 @@ extension DocumentWindowController {
     func adoptExternalMarkdown(_ markdown: String,
                               editor: EditorViewController?,
                               exitAfter: Bool) {
+        cancelInspectorRefresh()
         currentMarkdown = markdown
         editorDraftMarkdown = nil
         editorBaselineMarkdown = isEditing && !exitAfter ? markdown : nil
@@ -442,6 +485,7 @@ extension DocumentWindowController {
         split.editorViewController?.cancelRequested = nil
         split.editorViewController?.pasteImageRequested = nil
         split.editorViewController?.imageClicked = nil
+        cancelInspectorRefresh()
         documentWindow.makeFirstResponder(nil)
         let overlayHidden: @MainActor () -> Void = { [weak self] in
             if hidesAccessoryAfterSwap { self?.dismissEditChrome() }

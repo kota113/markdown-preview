@@ -24,6 +24,7 @@ final class SidebarViewController: NSViewController {
     private var titleItem: TitleItem?
     private var lastRenderedMarkdown: String?
     private var lastRenderedFileName: String?
+    private var lastRenderedOutline: [TOCItem] = []
     private var loadedFolderURL: URL?
     private var pendingFolderURL: URL?
     private var pendingFileURL: URL?
@@ -137,12 +138,23 @@ final class SidebarViewController: NSViewController {
     func display(markdown: String, fileName: String, fileURL: URL?) {
         loadViewIfNeeded()
         setOpenFileURL(fileURL)
+        refreshOutline(markdown: markdown, fileName: fileName)
+    }
 
+    /// Keep the table of contents in sync with unsaved editor text without
+    /// reloading the outline (and clearing its selection) for body-only edits.
+    func refreshOutline(markdown: String, fileName: String) {
+        loadViewIfNeeded()
         guard markdown != lastRenderedMarkdown || fileName != lastRenderedFileName else { return }
+        let outline = MarkdownTOC.parse(markdown)
+        let outlineChanged = outline != lastRenderedOutline || fileName != lastRenderedFileName
         lastRenderedMarkdown = markdown
         lastRenderedFileName = fileName
+        guard outlineChanged else { return }
+
+        lastRenderedOutline = outline
         titleItem = fileName.isEmpty ? nil : TitleItem(title: fileName)
-        roots = MarkdownTOC.parse(markdown).map(TOCNode.init)
+        roots = outline.map(TOCNode.init)
         outlineView.reloadData()
         for root in roots {
             outlineView.expandItem(root, expandChildren: true)

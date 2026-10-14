@@ -113,6 +113,17 @@ final class MarkdownTOCTests: XCTestCase {
         XCTAssertEqual(MarkdownTOC.parse(markdown).first?.title, "Bold italic deleted link a_b* & *literal* alt")
     }
 
+    func testOutlineChangesOnlyWhenHeadingsChange() {
+        let original = "# Original\n\nBody text"
+        let editedBody = "# Original\n\nUpdated body text"
+        let renamedHeading = "# Renamed\n\nBody text"
+        let insertedHeading = "# Original\n\n## New section\n\nBody text"
+
+        XCTAssertEqual(MarkdownTOC.parse(original), MarkdownTOC.parse(editedBody))
+        XCTAssertNotEqual(MarkdownTOC.parse(original), MarkdownTOC.parse(renamedHeading))
+        XCTAssertNotEqual(MarkdownTOC.parse(original), MarkdownTOC.parse(insertedHeading))
+    }
+
     func testOutlineIDsAndLevelsMatchRenderedArticle() throws {
         let markdown = """
         ---

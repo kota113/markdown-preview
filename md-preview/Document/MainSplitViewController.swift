@@ -103,6 +103,19 @@ final class MainSplitViewController: NSSplitViewController {
         inspectorViewController?.display(metadata: DocumentMetadata.make(url: url, markdown: markdown))
     }
 
+    /// Refresh the Inspector and outline from the latest unsaved editor source.
+    /// The preview stays untouched until the user leaves edit mode.
+    func refreshDocumentSidebars(markdown: String, fileURL: URL?) {
+        sidebarViewController?.refreshOutline(
+            markdown: markdown,
+            fileName: fileURL?.lastPathComponent
+                ?? NSLocalizedString("Untitled", comment: "Untitled document name")
+        )
+        inspectorViewController?.display(
+            metadata: DocumentMetadata.make(url: fileURL, markdown: markdown)
+        )
+    }
+
     /// URL-only refresh after a rename. Skips the content re-render so
     /// the preview, scroll position, and active-heading highlight stay
     /// put.
