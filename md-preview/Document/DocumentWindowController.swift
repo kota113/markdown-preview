@@ -573,6 +573,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         } else {
             loadFile(at: newURL, silentOnFailure: true)
         }
+        if isEditing { refreshInspectorAfterRename() }
     }
 
     /// Also read by `WhatsNewWindow` as a sign of earlier use.

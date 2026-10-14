@@ -116,6 +116,13 @@ extension DocumentWindowController {
         inspectorComputationQueue.async(execute: work)
     }
 
+    /// The file URL changed while editing; invalidate old-URL work and read the live editor again.
+    func refreshInspectorAfterRename() {
+        guard let editor = mainSplit?.editorViewController else { return }
+        invalidateInspectorRefresh()
+        scheduleInspectorRefresh(from: editor)
+    }
+
     private func invalidateInspectorRefresh() {
         pendingInspectorRefresh?.cancel()
         pendingInspectorRefresh = nil

@@ -146,7 +146,12 @@ final class MainSplitViewController: NSSplitViewController {
     func openFileURLDidChange(_ newURL: URL, markdown: String) {
         contentViewController?.sourceFileURLDidChange(newURL)
         sidebarViewController?.openFileURLDidChange(newURL)
-        inspectorViewController?.display(metadata: DocumentMetadata.make(url: newURL, markdown: markdown))
+        if isEditingDocument {
+            // Preserve live counts until the editor snapshot is fetched for the new URL.
+            inspectorViewController?.updateFileURL(newURL)
+        } else {
+            inspectorViewController?.display(metadata: DocumentMetadata.make(url: newURL, markdown: markdown))
+        }
     }
 
     func openFolder(_ folderURL: URL, selectedFileURL: URL?) {
