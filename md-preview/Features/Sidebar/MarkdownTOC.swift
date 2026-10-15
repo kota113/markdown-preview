@@ -10,7 +10,7 @@ nonisolated struct TOCItem: Identifiable, Hashable, Sendable {
     let id: Int
     let level: Int
     let title: String
-    let sourceLine: Int?
+    let sourceLine: Int
     var children: [TOCItem]
 }
 
@@ -24,7 +24,7 @@ nonisolated enum MarkdownTOC {
     private struct RawHeading {
         let level: Int
         let title: String
-        let sourceLine: Int?
+        let sourceLine: Int
     }
 
     private static func extractHeadings(from markdown: String) -> [RawHeading] {
@@ -42,11 +42,15 @@ nonisolated enum MarkdownTOC {
         var headings: [RawHeading] = []
 
         mutating func visitHeading(_ heading: Heading) {
+            // Parsed headings are expected to have source locations.
+            guard let range = heading.range else {
+                preconditionFailure("Parsed Markdown heading is missing a source range")
+            }
             // Keep empty headings too: IDs follow rendered heading order.
             headings.append(RawHeading(
                 level: heading.level,
                 title: Self.titleText(heading),
-                sourceLine: heading.range.map { $0.lowerBound.line + sourceLineOffset }
+                sourceLine: range.lowerBound.line + sourceLineOffset
             ))
         }
 
@@ -65,9 +69,9 @@ nonisolated enum MarkdownTOC {
             let level: Int
             let id: Int
             let title: String
-            let sourceLine: Int?
+            let sourceLine: Int
             var children: [Node] = []
-            init(level: Int, id: Int, title: String, sourceLine: Int? = nil) {
+            init(level: Int, id: Int, title: String, sourceLine: Int) {
                 self.level = level
                 self.id = id
                 self.title = title
@@ -79,7 +83,8 @@ nonisolated enum MarkdownTOC {
             }
         }
 
-        let root = Node(level: 0, id: -1, title: "")
+        // Synthetic root is not included in the returned outline.
+        let root = Node(level: 0, id: -1, title: "", sourceLine: 0)
         var stack: [Node] = [root]
 
         for (index, heading) in headings.enumerated() {

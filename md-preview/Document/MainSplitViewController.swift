@@ -49,7 +49,7 @@ final class MainSplitViewController: NSSplitViewController {
             guard let self else { return }
             if self.isEditingDocument {
                 // The preview behind the editor can contain older headings.
-                guard self.isEditorVisible, let sourceLine else { return }
+                guard self.isEditorVisible else { return }
                 self.cachedEditorViewController?.scrollToSourceLine(sourceLine)
             } else {
                 // Pin before scrolling so a no-op scroll still confirms the click.

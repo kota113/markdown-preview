@@ -12,7 +12,7 @@ final class SidebarViewController: NSViewController {
         case files = 1
     }
 
-    var onSelectHeading: ((Int, Int?) -> Void)?
+    var onSelectHeading: ((Int, Int) -> Void)?
     var onSelectFile: ((URL) -> Void)?
     var onModeChanged: ((Mode) -> Void)?
 
@@ -363,7 +363,7 @@ final class TOCNode {
     let headingID: Int
     let level: Int
     let title: String
-    var sourceLine: Int?
+    var sourceLine: Int
     let children: [TOCNode]
 
     init(_ item: TOCItem) {
