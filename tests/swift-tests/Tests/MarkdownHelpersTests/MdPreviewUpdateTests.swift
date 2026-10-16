@@ -432,6 +432,8 @@ final class MdPreviewUpdateTests: XCTestCase {
             document.dispatchEvent(new Event('selectionchange'));
             const cleared = reported();
             selectContents(article.querySelector('p'));
+            // A full replacement discards the old DOM selection.
+            window.morphdom = undefined;
             window.MdPreview.update('<p>Replacement document</p>');
             const replaced = reported();
             return JSON.stringify({ first, repeated, outsideResult, wholeBody, cleared, replaced });
@@ -453,6 +455,54 @@ final class MdPreviewUpdateTests: XCTestCase {
         XCTAssertNil(state.cleared.last ?? nil)
         XCTAssertEqual(state.replaced.count, state.cleared.count + 2)
         XCTAssertNil(state.replaced.last ?? nil)
+    }
+
+    @MainActor
+    func testReaderSelectionSurvivesUnrelatedArticleMorph() async throws {
+        let webView = try await loadHarness(articleAttributes: "", stubsWebKitMessageHandler: true)
+        let initialHTML = MarkdownHTML.javaScriptStringLiteral(
+            "<p id='kept'>Selected paragraph.</p><p>Before update.</p>"
+        )
+        let updatedHTML = MarkdownHTML.javaScriptStringLiteral(
+            "<p id='kept'>Selected paragraph.</p><p>After update.</p>"
+        )
+        _ = try await webView.evaluateJavaScript("MdPreview.update(\(initialHTML)); true")
+        let result = try await webView.evaluateJavaScript("""
+        (() => {
+            const selectedNode = document.getElementById('kept').firstChild;
+            const selection = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(selectedNode);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            window.__hostMessages = [];
+            document.dispatchEvent(new Event('selectionchange'));
+
+            // Change unrelated text without modifying the selected paragraph.
+            MdPreview.update(\(updatedHTML));
+
+            return JSON.stringify({
+                selectionIntact: selection.rangeCount > 0
+                    && selection.getRangeAt(0).startContainer === selectedNode
+                    && selection.toString() === 'Selected paragraph.',
+                newParagraph: document.querySelectorAll('p')[1].textContent,
+                reports: window.__hostMessages
+                    .filter(message => message.kind === 'selectedText')
+                    .map(message => message.value)
+            });
+        })()
+        """)
+        let json = try XCTUnwrap(result as? String)
+        let state = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(state["selectionIntact"] as? Bool, true, json)
+        XCTAssertEqual(state["newParagraph"] as? String, "After update.", json)
+        let reports = try XCTUnwrap(state["reports"] as? [Any])
+        XCTAssertEqual(reports.count, 3, json)
+        XCTAssertEqual(reports[0] as? String, "Selected paragraph.")
+        XCTAssertTrue(reports[1] is NSNull, json)
+        XCTAssertEqual(reports[2] as? String, "Selected paragraph.")
     }
 
     @MainActor

@@ -866,6 +866,9 @@ nonisolated extension MarkdownHTML {
                     try { fn(); } catch (e) { /* one bad apple shouldn't block others */ }
                 }
             }
+            // Morphing can preserve a native selection without a selectionchange event.
+            // Re-report it after the DOM update if it still intersects the article.
+            pushSelectedText();
             perfLog('MdPreview.update' + (morphed ? ' (morphdom)' : ''), '(+' + (perfNow() - tStart).toFixed(1) + 'ms)');
             pushHeight();
         };
