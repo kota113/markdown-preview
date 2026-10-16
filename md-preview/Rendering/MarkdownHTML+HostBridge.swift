@@ -157,7 +157,7 @@ nonisolated extension MarkdownHTML {
                         clipped.setStart(bounds.startContainer, bounds.startOffset);
                     if (clipped.compareBoundaryPoints(Range.END_TO_END, bounds) > 0)
                         clipped.setEnd(bounds.endContainer, bounds.endOffset);
-                    text = clipped.toString() || null;
+                    text = plainTextFromRange(clipped) || null;
                 }
             }
             if (text === lastSelectedText) return;
@@ -301,14 +301,24 @@ nonisolated extension MarkdownHTML {
             post({kind: 'tablePopup', markdown: clone.outerHTML, title});
         });
 
-        function selectionFragment(selection) {
+        // The Range-based primitive keeps copying and Inspector counts in sync.
+        function cloneRangeWithoutChrome(range) {
+            const fragment = range.cloneContents();
+            const chrome = fragment.querySelectorAll('.md-code-header, .md-table-actions');
+            chrome.forEach(node => node.remove());
+            return { fragment, removedChrome: chrome.length > 0 };
+        }
+
+        // Copy can contain multiple ranges; callers do not need to unpack them.
+        function cloneSelectionWithoutChrome(selection) {
             const fragment = document.createDocumentFragment();
-            for (let i = 0; i < selection.rangeCount; i += 1) {
-                fragment.appendChild(selection.getRangeAt(i).cloneContents());
+            let removedChrome = false;
+            for (let i = 0; i < selection.rangeCount; i++) {
+                const part = cloneRangeWithoutChrome(selection.getRangeAt(i));
+                fragment.appendChild(part.fragment);
+                removedChrome = part.removedChrome || removedChrome;
             }
-            const buttons = fragment.querySelectorAll('.md-code-header, .md-table-actions');
-            buttons.forEach((button) => button.remove());
-            return { fragment, removedButtons: buttons.length > 0 };
+            return { fragment, removedChrome };
         }
 
         // Copy as Markdown. The host keeps `window.MdPreview.source` (the
@@ -397,10 +407,42 @@ nonisolated extension MarkdownHTML {
             return parts.join('\\n');
         }
 
+        // Read visible line boundaries without laying out a detached fragment.
         function plainTextFromFragment(fragment) {
-            const div = document.createElement('div');
-            div.appendChild(fragment.cloneNode(true));
-            return div.innerText || div.textContent || '';
+            const blockTags = /^(?:ADDRESS|ARTICLE|BLOCKQUOTE|DD|DIV|DL|DT|FIGCAPTION|FIGURE|H[1-6]|HEADER|HR|LI|MAIN|OL|P|PRE|SECTION|TABLE|TBODY|TD|TFOOT|TH|THEAD|TR|UL)$/;
+            let text = '';
+            let pendingBreaks = 0;
+
+            function append(value) {
+                if (!value) return;
+                if (pendingBreaks && text) {
+                    const trailingBreaks = /\n*$/.exec(text)[0].length;
+                    text += '\n'.repeat(Math.max(0, pendingBreaks - trailingBreaks));
+                }
+                pendingBreaks = 0;
+                text += value;
+            }
+            function visit(node) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    append(node.nodeValue);
+                    return;
+                }
+                if (node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) return;
+                if (node.nodeName === 'BR') {
+                    append('\n');
+                    return;
+                }
+                const breaks = node.nodeName === 'P' ? 2 : blockTags.test(node.nodeName) ? 1 : 0;
+                pendingBreaks = Math.max(pendingBreaks, breaks);
+                for (const child of node.childNodes) visit(child);
+                pendingBreaks = Math.max(pendingBreaks, breaks);
+            }
+            visit(fragment);
+            return text;
+        }
+
+        function plainTextFromRange(range) {
+            return plainTextFromFragment(cloneRangeWithoutChrome(range).fragment);
         }
 
         function htmlFromFragment(fragment) {
@@ -491,7 +533,7 @@ nonisolated extension MarkdownHTML {
         window.addEventListener('copy', (event) => {
             const selection = window.getSelection();
             if (!selection || selection.rangeCount === 0 || !event.clipboardData) return;
-            const { fragment, removedButtons } = selectionFragment(selection);
+            const { fragment, removedChrome } = cloneSelectionWithoutChrome(selection);
             const markdown = markdownForSelection(selection);
             if (markdown !== null) {
                 event.clipboardData.setData('text/plain', markdown);
@@ -502,7 +544,7 @@ nonisolated extension MarkdownHTML {
             // Another handler already wrote the pasteboard: leave it alone.
             if (event.defaultPrevented) return;
             // Otherwise only step in to keep code copy buttons out of the text.
-            if (!removedButtons) return;
+            if (!removedChrome) return;
             event.clipboardData.setData('text/plain', plainTextFromFragment(fragment));
             event.clipboardData.setData('text/html', htmlFromFragment(fragment));
             event.preventDefault();

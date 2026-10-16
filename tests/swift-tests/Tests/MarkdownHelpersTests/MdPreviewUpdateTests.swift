@@ -456,6 +456,46 @@ final class MdPreviewUpdateTests: XCTestCase {
     }
 
     @MainActor
+    func testReaderSelectionCountsLineBreaksAndSkipsCodeChrome() async throws {
+        let webView = try await loadHarness(articleAttributes: "", stubsWebKitMessageHandler: true)
+        let html = """
+        <p>one<br>two</p>
+        <pre data-code-language="swift"><code>let answer = 42</code></pre>
+        """
+        _ = try await webView.evaluateJavaScript(
+            "window.MdPreview.update(\(MarkdownHTML.javaScriptStringLiteral(html))); true"
+        )
+        let result = try await webView.evaluateJavaScript("""
+        (() => {
+            const article = document.querySelector('article.markdown-body');
+            const paragraph = article.querySelector('p');
+            const code = article.querySelector('pre');
+            const selection = window.getSelection();
+            window.__hostMessages = [];
+            function select(range) {
+                selection.removeAllRanges();
+                selection.addRange(range);
+                document.dispatchEvent(new Event('selectionchange'));
+                return window.__hostMessages.filter(m => m.kind === 'selectedText').at(-1)?.value;
+            }
+            const single = document.createRange();
+            single.selectNodeContents(paragraph);
+            const lineBreaks = select(single);
+            const spanning = document.createRange();
+            spanning.setStartBefore(paragraph);
+            spanning.setEndAfter(code);
+            const withCode = select(spanning);
+            return JSON.stringify({ lineBreaks, withCode });
+        })()
+        """)
+        let json = try XCTUnwrap(result as? String)
+        let state = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: String])
+        XCTAssertEqual(state["lineBreaks"], "one\ntwo")
+        XCTAssertEqual(state["withCode"], "one\ntwo\n\nlet answer = 42")
+        XCTAssertFalse(state["withCode"]?.contains("swift") ?? true, json)
+    }
+
+    @MainActor
     private func loadHarness(
         articleAttributes: String,
         stubsWebKitMessageHandler: Bool = false
