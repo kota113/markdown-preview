@@ -13,7 +13,7 @@ final class InspectorViewController: NSViewController {
     private var selectedText: String?
 
     override func loadView() {
-        host = NSHostingView(rootView: InspectorView(metadata: metadata))
+        host = NSHostingView(rootView: InspectorView(metadata: metadata, showsSelectionCounts: false))
         view = host
     }
 
@@ -36,7 +36,10 @@ final class InspectorViewController: NSViewController {
             values.characterCount = selectedText.count
             values.lineCount = selectedText.components(separatedBy: .newlines).count
         }
-        host.rootView = InspectorView(metadata: values)
+        host.rootView = InspectorView(
+            metadata: values,
+            showsSelectionCounts: selectedText.map { !$0.isEmpty } ?? false
+        )
     }
 
     func updateFileURL(_ url: URL) {
