@@ -416,8 +416,8 @@ nonisolated extension MarkdownHTML {
             function append(value) {
                 if (!value) return;
                 if (pendingBreaks && text) {
-                    const trailingBreaks = /\n*$/.exec(text)[0].length;
-                    text += '\n'.repeat(Math.max(0, pendingBreaks - trailingBreaks));
+                    const trailingBreaks = /\\n*$/.exec(text)[0].length;
+                    text += '\\n'.repeat(Math.max(0, pendingBreaks - trailingBreaks));
                 }
                 pendingBreaks = 0;
                 text += value;
@@ -429,7 +429,7 @@ nonisolated extension MarkdownHTML {
                 }
                 if (node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) return;
                 if (node.nodeName === 'BR') {
-                    append('\n');
+                    append('\\n');
                     return;
                 }
                 const breaks = node.nodeName === 'P' ? 2 : blockTags.test(node.nodeName) ? 1 : 0;
