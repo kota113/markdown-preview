@@ -926,7 +926,12 @@ class TableEditorWidget extends WidgetType {
       )
       window.getSelection()?.removeAllRanges()
       selectedPart = { kind, row: anchor.row, column: anchor.column, bounds }
-      tableFormattingTargets.delete(view)
+      // Selecting a whole row, column, or range drops the text selected in a
+      // cell, and nothing else tells the Inspector, so it manually notifies
+      // the change
+      if (tableFormattingTargets.delete(view)) {
+        tableFormattingCallbacks.get(view)?.({ ...selectionContext(view.state), selectedText: null })
+      }
       root.tabIndex = 0
       if (kind === "range") {
         const rowCount = bounds.bottom - bounds.top + 1

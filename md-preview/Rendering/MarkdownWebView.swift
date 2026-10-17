@@ -578,6 +578,10 @@ final class MarkdownWebView: NSView, WKNavigationDelegate {
             return
         }
 
+        // A full page load drops any selection in the old page without a
+        // selectionchange, and the new page starts with no selection.
+        selectedTextDidChange?(nil)
+
         #if DEBUG
         let loadStartedAt = DispatchTime.now().uptimeNanoseconds
         webView.loadHTMLString(rendered.html, baseURL: nil)
