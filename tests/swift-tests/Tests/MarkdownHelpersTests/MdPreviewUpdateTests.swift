@@ -546,6 +546,54 @@ final class MdPreviewUpdateTests: XCTestCase {
     }
 
     @MainActor
+    func testReaderSelectionCountsOnlyRenderedText() async throws {
+        let webView = try await loadHarness(articleAttributes: "", stubsWebKitMessageHandler: true)
+        let html = """
+        <ul>
+          <li>alpha   beta</li>
+          <li>gamma</li>
+        </ul>
+        <table><thead><tr><th>Name</th><th>Role</th></tr></thead>
+        <tbody><tr><td>Ada Lovelace</td><td>math</td></tr></tbody></table>
+        <details><summary>More</summary><p>hidden body</p>bare hidden</details>
+        <p>x <span class="katex"><span class="katex-mathml">MATHML</span><span class="katex-html">E</span></span> y</p>
+        """
+        _ = try await webView.evaluateJavaScript(
+            "window.MdPreview.update(\(MarkdownHTML.javaScriptStringLiteral(html))); true"
+        )
+        let result = try await webView.evaluateJavaScript("""
+        (() => {
+            const article = document.querySelector('article.markdown-body');
+            const selection = window.getSelection();
+            window.__hostMessages = [];
+            function select(node) {
+                const range = document.createRange();
+                range.selectNodeContents(node);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                document.dispatchEvent(new Event('selectionchange'));
+                return window.__hostMessages.filter(m => m.kind === 'selectedText').at(-1)?.value;
+            }
+            const list = select(article.querySelector('ul'));
+            const table = select(article.querySelector('table'));
+            const details = select(article.querySelector('details'));
+            const math = select(article.querySelector('.katex').parentElement);
+            return JSON.stringify({ list, table, details, math });
+        })()
+        """)
+        let json = try XCTUnwrap(result as? String)
+        let state = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: String])
+        // Source indentation and repeated spaces collapse as the preview renders them.
+        XCTAssertEqual(state["list"], "alpha beta\ngamma")
+        // Cells stay separate words; rows stay separate lines.
+        XCTAssertEqual(state["table"], "Name\tRole\nAda Lovelace\tmath")
+        // A closed <details> shows only its summary.
+        XCTAssertEqual(state["details"], "More")
+        // KaTeX's hidden MathML twin is not counted twice.
+        XCTAssertEqual(state["math"], "x E y")
+    }
+
+    @MainActor
     private func loadHarness(
         articleAttributes: String,
         stubsWebKitMessageHandler: Bool = false

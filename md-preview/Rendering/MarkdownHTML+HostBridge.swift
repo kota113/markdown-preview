@@ -139,6 +139,133 @@ nonisolated extension MarkdownHTML {
 
         window.MdPreviewHost = { pushHeight, measureHeight };
 
+        // Controls injected into the article. Copying and Inspector counts
+        // both leave them out.
+        const MD_CHROME_SELECTOR = '.md-code-header, .md-table-actions, .mermaid-hud';
+        // Rendered but not document text: diagram zoom controls and KaTeX's
+        // visually hidden MathML twin. Inspector counts only.
+        const MD_UNCOUNTED_SELECTOR = MD_CHROME_SELECTOR + ', .mermaid-hud, .katex-mathml';
+
+        // Text of `range` as the preview shows it. Walks the live article
+        // rather than a detached clone so computed styles decide block
+        // breaks, whitespace collapsing, and visibility (closed <details>,
+        // display:none) the way the page renders them.
+        function renderedTextOfRange(range, root) {
+            const styles = new Map();
+            function styleOf(element) {
+                let style = styles.get(element);
+                if (!style) {
+                    style = getComputedStyle(element);
+                    styles.set(element, style);
+                }
+                return style;
+            }
+            function whiteSpaceMode(element) {
+                const style = styleOf(element);
+                const collapse = style.whiteSpaceCollapse;
+                if (collapse) {
+                    if (collapse === 'preserve-breaks') return 'preserve-breaks';
+                    return collapse === 'collapse' ? 'collapse' : 'preserve';
+                }
+                const ws = style.whiteSpace;
+                if (ws === 'pre-line') return 'preserve-breaks';
+                return /^(?:pre|pre-wrap|break-spaces)$/.test(ws) ? 'preserve' : 'collapse';
+            }
+            function isBlock(display) {
+                return !/^(?:inline|contents|table-cell|ruby)/.test(display);
+            }
+
+            // Separators wait until the next visible text, so leading and
+            // trailing breaks never reach the result. Line breaks win over
+            // cell tabs, which win over collapsed spaces.
+            let text = '';
+            let breaks = 0;
+            let cell = false;
+            let space = false;
+            function emit(value) {
+                if (text) {
+                    if (breaks) {
+                        const trailing = /\\n*$/.exec(text)[0].length;
+                        text += '\\n'.repeat(Math.max(0, breaks - trailing));
+                    } else if (cell) {
+                        text += '\\t';
+                    } else if (space && !text.endsWith('\\n') && !value.startsWith('\\n')) {
+                        text += ' ';
+                    }
+                }
+                breaks = 0;
+                cell = false;
+                space = false;
+                text += value;
+            }
+            function addText(node) {
+                let value = node.nodeValue;
+                if (node === range.endContainer) value = value.slice(0, range.endOffset);
+                if (node === range.startContainer) value = value.slice(range.startOffset);
+                const parent = node.parentElement;
+                if (!value || !parent || styleOf(parent).visibility !== 'visible') return;
+                const mode = whiteSpaceMode(parent);
+                if (mode === 'preserve') {
+                    emit(value);
+                    return;
+                }
+                value = mode === 'preserve-breaks'
+                    ? value.replace(/[ \\t]*\\n[ \\t]*/g, '\\n').replace(/[ \\t]+/g, ' ')
+                    : value.replace(/[ \\t\\n\\r\\f]+/g, ' ');
+                if (value.startsWith(' ')) {
+                    space = true;
+                    value = value.slice(1);
+                }
+                const trailingSpace = value.endsWith(' ');
+                if (trailingSpace) value = value.slice(0, -1);
+                if (value) emit(value);
+                if (trailingSpace) space = true;
+            }
+
+            const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+                acceptNode(node) {
+                    if (!range.intersectsNode(node)) return NodeFilter.FILTER_REJECT;
+                    if (node.nodeType !== Node.ELEMENT_NODE) return NodeFilter.FILTER_ACCEPT;
+                    if (node.matches(MD_UNCOUNTED_SELECTOR)) return NodeFilter.FILTER_REJECT;
+                    // display:contents has no box of its own, so checkVisibility
+                    // reports false even though its children render.
+                    if (styleOf(node).display === 'contents') return NodeFilter.FILTER_ACCEPT;
+                    if (typeof node.checkVisibility === 'function' && !node.checkVisibility())
+                        return NodeFilter.FILTER_REJECT;
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+            });
+            function walkChildren(node) {
+                if (!walker.firstChild()) return;
+                // A closed <details> renders only its summary.
+                const closedDetails = node.nodeName === 'DETAILS' && !node.open;
+                do {
+                    const child = walker.currentNode;
+                    if (closedDetails && child.nodeName !== 'SUMMARY') continue;
+                    walk(child);
+                } while (walker.nextSibling());
+                walker.parentNode();
+            }
+            function walk(node) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    addText(node);
+                    return;
+                }
+                if (node.nodeName === 'BR') {
+                    emit('\\n');
+                    return;
+                }
+                const display = styleOf(node).display;
+                const blockBreaks = node.nodeName === 'P' ? 2 : isBlock(display) ? 1 : 0;
+                breaks = Math.max(breaks, blockBreaks);
+                walkChildren(node);
+                breaks = Math.max(breaks, blockBreaks);
+                if (display === 'table-cell') cell = true;
+            }
+            walkChildren(root);
+            return text;
+        }
+
         // Mirror read-only text selections to the native Inspector. Only the
         // rendered article counts, even when Select All includes page chrome.
         let lastSelectedText = null;
@@ -157,7 +284,7 @@ nonisolated extension MarkdownHTML {
                         clipped.setStart(bounds.startContainer, bounds.startOffset);
                     if (clipped.compareBoundaryPoints(Range.END_TO_END, bounds) > 0)
                         clipped.setEnd(bounds.endContainer, bounds.endOffset);
-                    text = plainTextFromRange(clipped) || null;
+                    text = renderedTextOfRange(clipped, article) || null;
                 }
             }
             if (text === lastSelectedText) return;
@@ -301,24 +428,14 @@ nonisolated extension MarkdownHTML {
             post({kind: 'tablePopup', markdown: clone.outerHTML, title});
         });
 
-        // The Range-based primitive keeps copying and Inspector counts in sync.
-        function cloneRangeWithoutChrome(range) {
-            const fragment = range.cloneContents();
-            const chrome = fragment.querySelectorAll('.md-code-header, .md-table-actions');
-            chrome.forEach(node => node.remove());
-            return { fragment, removedChrome: chrome.length > 0 };
-        }
-
-        // Copy can contain multiple ranges; callers do not need to unpack them.
-        function cloneSelectionWithoutChrome(selection) {
+        function selectionFragment(selection) {
             const fragment = document.createDocumentFragment();
-            let removedChrome = false;
-            for (let i = 0; i < selection.rangeCount; i++) {
-                const part = cloneRangeWithoutChrome(selection.getRangeAt(i));
-                fragment.appendChild(part.fragment);
-                removedChrome = part.removedChrome || removedChrome;
+            for (let i = 0; i < selection.rangeCount; i += 1) {
+                fragment.appendChild(selection.getRangeAt(i).cloneContents());
             }
-            return { fragment, removedChrome };
+            const buttons = fragment.querySelectorAll(MD_CHROME_SELECTOR);
+            buttons.forEach((button) => button.remove());
+            return { fragment, removedButtons: buttons.length > 0 };
         }
 
         // Copy as Markdown. The host keeps `window.MdPreview.source` (the
@@ -407,42 +524,10 @@ nonisolated extension MarkdownHTML {
             return parts.join('\\n');
         }
 
-        // Read visible line boundaries without laying out a detached fragment.
         function plainTextFromFragment(fragment) {
-            const blockTags = /^(?:ADDRESS|ARTICLE|BLOCKQUOTE|DD|DIV|DL|DT|FIGCAPTION|FIGURE|H[1-6]|HEADER|HR|LI|MAIN|OL|P|PRE|SECTION|TABLE|TBODY|TD|TFOOT|TH|THEAD|TR|UL)$/;
-            let text = '';
-            let pendingBreaks = 0;
-
-            function append(value) {
-                if (!value) return;
-                if (pendingBreaks && text) {
-                    const trailingBreaks = /\\n*$/.exec(text)[0].length;
-                    text += '\\n'.repeat(Math.max(0, pendingBreaks - trailingBreaks));
-                }
-                pendingBreaks = 0;
-                text += value;
-            }
-            function visit(node) {
-                if (node.nodeType === Node.TEXT_NODE) {
-                    append(node.nodeValue);
-                    return;
-                }
-                if (node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) return;
-                if (node.nodeName === 'BR') {
-                    append('\\n');
-                    return;
-                }
-                const breaks = node.nodeName === 'P' ? 2 : blockTags.test(node.nodeName) ? 1 : 0;
-                pendingBreaks = Math.max(pendingBreaks, breaks);
-                for (const child of node.childNodes) visit(child);
-                pendingBreaks = Math.max(pendingBreaks, breaks);
-            }
-            visit(fragment);
-            return text;
-        }
-
-        function plainTextFromRange(range) {
-            return plainTextFromFragment(cloneRangeWithoutChrome(range).fragment);
+            const div = document.createElement('div');
+            div.appendChild(fragment.cloneNode(true));
+            return div.innerText || div.textContent || '';
         }
 
         function htmlFromFragment(fragment) {
@@ -533,7 +618,7 @@ nonisolated extension MarkdownHTML {
         window.addEventListener('copy', (event) => {
             const selection = window.getSelection();
             if (!selection || selection.rangeCount === 0 || !event.clipboardData) return;
-            const { fragment, removedChrome } = cloneSelectionWithoutChrome(selection);
+            const { fragment, removedButtons } = selectionFragment(selection);
             const markdown = markdownForSelection(selection);
             if (markdown !== null) {
                 event.clipboardData.setData('text/plain', markdown);
@@ -544,7 +629,7 @@ nonisolated extension MarkdownHTML {
             // Another handler already wrote the pasteboard: leave it alone.
             if (event.defaultPrevented) return;
             // Otherwise only step in to keep code copy buttons out of the text.
-            if (!removedChrome) return;
+            if (!removedButtons) return;
             event.clipboardData.setData('text/plain', plainTextFromFragment(fragment));
             event.clipboardData.setData('text/html', htmlFromFragment(fragment));
             event.preventDefault();
