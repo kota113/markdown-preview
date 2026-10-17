@@ -271,7 +271,7 @@ nonisolated extension MarkdownHTML {
                     return;
                 }
                 const display = styleOf(node).display;
-                const blockBreaks = node.nodeName === 'P' ? 2 : isBlock(display) ? 1 : 0;
+                const blockBreaks = !isBlock(display) ? 0 : node.nodeName === 'P' ? 2 : 1;
                 breaks = Math.max(breaks, blockBreaks);
                 walkChildren(node);
                 breaks = Math.max(breaks, blockBreaks);
