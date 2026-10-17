@@ -594,6 +594,57 @@ final class MdPreviewUpdateTests: XCTestCase {
     }
 
     @MainActor
+    func testReaderSelectionKeepsSelectedEdgeSpaces() async throws {
+        let webView = try await loadHarness(articleAttributes: "", stubsWebKitMessageHandler: true)
+        _ = try await webView.evaluateJavaScript(
+            "window.MdPreview.update('<p>fish and chips</p>\\n<p>\\n  indented\\n</p>\\n<p>fish   and</p>\\n<p>fish <em>and</em></p>\\n<p><em>fish</em> <strong>and</strong></p>'); true"
+        )
+        let result = try await webView.evaluateJavaScript("""
+        (() => {
+            const [first, second, third, beforeInline, betweenInline] =
+                document.querySelectorAll('article.markdown-body p');
+            const text = first.firstChild;
+            const selection = window.getSelection();
+            window.__hostMessages = [];
+            function select(node, start, end) {
+                const range = document.createRange();
+                range.setStart(node, start);
+                range.setEnd(node, end);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                document.dispatchEvent(new Event('selectionchange'));
+                return window.__hostMessages.filter(m => m.kind === 'selectedText').at(-1)?.value;
+            }
+            return JSON.stringify({
+                trailing: select(text, 0, 5),
+                leading: select(text, 4, 8),
+                spaceOnly: select(text, 4, 5),
+                formatting: select(second.firstChild, 0, second.firstChild.length),
+                spaceRun: select(third.firstChild, 0, 7),
+                runTail: select(third.firstChild, 5, 10),
+                beforeInline: select(beforeInline.firstChild, 0, 5),
+                betweenInline: select(betweenInline.childNodes[1], 0, 1),
+            });
+        })()
+        """)
+        let json = try XCTUnwrap(result as? String)
+        let state = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: String])
+        XCTAssertEqual(state["trailing"], "fish ")
+        XCTAssertEqual(state["leading"], " and")
+        // A selected space alone still counts as a selection, not the whole document.
+        XCTAssertEqual(state["spaceOnly"], " ")
+        // Source whitespace around a paragraph's text is still not counted.
+        XCTAssertEqual(state["formatting"], "indented")
+        // A run of spaces renders, and counts, as one space.
+        XCTAssertEqual(state["spaceRun"], "fish ")
+        // Spaces after the run's first one are not rendered.
+        XCTAssertEqual(state["runTail"], "and")
+        // An edge space renders even when the next word is in another element.
+        XCTAssertEqual(state["beforeInline"], "fish ")
+        XCTAssertEqual(state["betweenInline"], " ")
+    }
+
+    @MainActor
     private func loadHarness(
         articleAttributes: String,
         stubsWebKitMessageHandler: Bool = false

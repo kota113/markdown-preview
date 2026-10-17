@@ -198,28 +198,43 @@ nonisolated extension MarkdownHTML {
                 space = false;
                 text += value;
             }
+            // Whether the character at `index` takes up space on screen.
+            function rendersCharacter(node, index) {
+                const probe = document.createRange();
+                probe.setStart(node, index);
+                probe.setEnd(node, index + 1);
+                return probe.getBoundingClientRect().width > 0;
+            }
             function addText(node) {
-                let value = node.nodeValue;
-                if (node === range.endContainer) value = value.slice(0, range.endOffset);
-                if (node === range.startContainer) value = value.slice(range.startOffset);
+                const from = node === range.startContainer ? range.startOffset : 0;
+                const to = node === range.endContainer ? range.endOffset : node.nodeValue.length;
+                const selected = node.nodeValue.slice(from, to);
                 const parent = node.parentElement;
-                if (!value || !parent || styleOf(parent).visibility !== 'visible') return;
+                if (!selected || !parent || styleOf(parent).visibility !== 'visible') return;
                 const mode = whiteSpaceMode(parent);
                 if (mode === 'preserve') {
-                    emit(value);
+                    emit(selected);
                     return;
                 }
-                value = mode === 'preserve-breaks'
-                    ? value.replace(/[ \\t]*\\n[ \\t]*/g, '\\n').replace(/[ \\t]+/g, ' ')
-                    : value.replace(/[ \\t\\n\\r\\f]+/g, ' ');
+                let value = mode === 'preserve-breaks'
+                    ? selected.replace(/[ \\t]*\\n[ \\t]*/g, '\\n').replace(/[ \\t]+/g, ' ')
+                    : selected.replace(/[ \\t\\n\\r\\f]+/g, ' ');
+                // Spaces between text nodes wait for the next visible text so
+                // source formatting drops out. A space at a selection edge has
+                // no such neighbor in the selection, so ask layout instead.
                 if (value.startsWith(' ')) {
-                    space = true;
                     value = value.slice(1);
+                    if (node === range.startContainer && rendersCharacter(node, from)) emit(' ');
+                    else space = true;
                 }
                 const trailingSpace = value.endsWith(' ');
                 if (trailingSpace) value = value.slice(0, -1);
                 if (value) emit(value);
-                if (trailingSpace) space = true;
+                if (trailingSpace) {
+                    const run = /[ \\t\\n\\r\\f]+$/.exec(selected);
+                    if (node === range.endContainer && rendersCharacter(node, from + run.index)) emit(' ');
+                    else space = true;
+                }
             }
 
             const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
