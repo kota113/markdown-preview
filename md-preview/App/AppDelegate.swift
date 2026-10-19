@@ -949,7 +949,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func installNewTabMenuItem() {
-        guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
+        guard let fileMenu = fileMenu(),
               fileMenu.items.first(where: {
                   $0.action == #selector(DocumentWindowController.newDocumentTab(_:))
               }) == nil else { return }
@@ -967,7 +967,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func installSearchForDocumentMenuItem() {
-        guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
+        guard let fileMenu = fileMenu(),
               fileMenu.items.first(where: {
                   $0.action == #selector(DocumentWindowController.searchForDocument(_:))
               }) == nil else { return }
@@ -985,7 +985,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func installFileExportMenuItems() {
-        guard let fileMenu = topLevelSubmenu(matching: Self.fileMenuTitles),
+        guard let fileMenu = fileMenu(),
               let pdfIndex = fileMenu.items.firstIndex(where: {
                   $0.action == #selector(
                       MainSplitViewController.exportMarkdownAsPDF(_:))
@@ -1034,7 +1034,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func installGoMenu() {
         guard let mainMenu = NSApp.mainMenu,
-              topLevelMenuItem(matching: Self.goMenuTitles) == nil else { return }
+              goMenu() == nil else { return }
 
         func arrow(_ functionKey: Int) -> String {
             UnicodeScalar(functionKey).map { String(Character($0)) } ?? ""
@@ -1111,22 +1111,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let goItem = NSMenuItem(title: goTitle, action: nil, keyEquivalent: "")
         goItem.submenu = menu
 
-        let insertIndex = mainMenu.items.firstIndex(where: {
-            Self.windowMenuTitles.contains($0.title)
-        }) ?? mainMenu.items.count
+        let insertIndex = windowMenu().flatMap { windowMenu in
+            mainMenu.items.firstIndex { $0.submenu === windowMenu }
+        } ?? mainMenu.items.count
         mainMenu.insertItem(goItem, at: insertIndex)
     }
 
     private func installViewMenuItemIcons() {
-        guard let viewMenu = topLevelSubmenu(matching: Self.viewMenuTitles) else { return }
-        let icons: [(titles: Set<String>, symbol: String)] = [
-            (["Actual Size", "实际大小"], "magnifyingglass"),
-            (["Zoom In", "放大"], "plus.magnifyingglass"),
-            (["Zoom Out", "缩小"], "minus.magnifyingglass"),
-            (["Always on Top", "始终置顶"], "pin")
+        guard let viewMenu = viewMenu() else { return }
+        let icons: [(action: Selector, symbol: String)] = [
+            (#selector(MainSplitViewController.resetDocumentZoom(_:)), "magnifyingglass"),
+            (#selector(MainSplitViewController.zoomInDocument(_:)), "plus.magnifyingglass"),
+            (#selector(MainSplitViewController.zoomOutDocument(_:)), "minus.magnifyingglass"),
+            (#selector(DocumentWindowController.toggleAlwaysOnTop(_:)), "pin")
         ]
-        for (titles, symbol) in icons {
-            guard let item = viewMenu.items.first(where: { titles.contains($0.title) }),
+        for (action, symbol) in icons {
+            guard let item = viewMenu.items.first(where: { $0.action == action }),
                   let image = NSImage(systemSymbolName: symbol,
                                       accessibilityDescription: item.title)
             else { continue }
@@ -1136,10 +1136,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func installAppearanceMenuItems() {
-        guard let viewMenu = topLevelSubmenu(matching: Self.viewMenuTitles),
-              viewMenu.items.first(where: {
-                  Self.appearanceMenuTitles.contains($0.title)
-              }) == nil else { return }
+        guard let viewMenu = viewMenu(), appearanceMenuItem() == nil else { return }
 
         let appearanceTitle = L("Appearance")
         let appearanceItem = NSMenuItem(title: appearanceTitle, action: nil, keyEquivalent: "")
@@ -1174,10 +1171,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func installContentWidthMenuItems() {
-        guard let viewMenu = topLevelSubmenu(matching: Self.viewMenuTitles),
-              viewMenu.items.first(where: {
-                  Self.contentWidthMenuTitles.contains($0.title)
-              }) == nil else { return }
+        guard let viewMenu = viewMenu(), contentWidthMenuItem() == nil else { return }
 
         let widthTitle = L("Content Width")
         let widthItem = NSMenuItem(title: widthTitle, action: nil, keyEquivalent: "")
@@ -1204,9 +1198,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         }
         widthItem.submenu = submenu
-        let insertIndex = viewMenu.items
-            .firstIndex(where: { Self.appearanceMenuTitles.contains($0.title) })
-            .map { $0 + 1 } ?? 0
+        let insertIndex = appearanceMenuItem()
+            .map { viewMenu.index(of: $0) + 1 } ?? 0
         viewMenu.insertItem(widthItem, at: insertIndex)
         syncContentWidthMenuState()
     }
@@ -1297,11 +1290,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func installSidebarViewMenuItems() {
-        guard let viewMenu = topLevelSubmenu(matching: Self.viewMenuTitles) else { return }
+        guard let viewMenu = viewMenu() else { return }
 
-        if let existing = viewMenu.items.first(where: {
-            Self.showSidebarMenuTitles.contains($0.title)
-        }) {
+        if let existing = showSidebarMenuItem() {
             viewMenu.removeItem(existing)
         }
         guard viewMenu.items.first(where: { $0.action == #selector(hideSidebarFromMenu(_:)) }) == nil else {
@@ -1345,7 +1336,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func installEditModeMenuItem() {
-        guard let viewMenu = topLevelSubmenu(matching: Self.viewMenuTitles),
+        guard let viewMenu = viewMenu(),
               viewMenu.items.first(where: {
                   $0.action == #selector(toggleEditModeFromMenu(_:))
               }) == nil else { return }
@@ -1356,9 +1347,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.keyEquivalentModifierMask = [.command]
         item.target = self
 
-        let insertIndex = viewMenu.items.firstIndex(where: {
-            Self.actualSizeMenuTitles.contains($0.title)
-        }) ?? viewMenu.numberOfItems
+        let insertIndex = actualSizeMenuItem()
+            .map { viewMenu.index(of: $0) } ?? viewMenu.numberOfItems
         viewMenu.insertItem(item, at: insertIndex)
         viewMenu.insertItem(.separator(), at: insertIndex + 1)
     }
@@ -1369,7 +1359,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func installFormatMenu() {
         guard let mainMenu = NSApp.mainMenu,
-              topLevelMenuItem(matching: Self.formatMenuTitles) == nil else { return }
+              formatMenu() == nil else { return }
 
         func item(_ titleKey: String,
                   command: String,
@@ -1407,9 +1397,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let rootItem = NSMenuItem(title: formatTitle, action: nil, keyEquivalent: "")
         rootItem.submenu = menu
-        let insertIndex = mainMenu.items.firstIndex(where: {
-            Self.viewMenuTitles.contains($0.title)
-        }) ?? mainMenu.items.count
+        let insertIndex = viewMenu().flatMap { viewMenu in
+            mainMenu.items.firstIndex { $0.submenu === viewMenu }
+        } ?? mainMenu.items.count
         mainMenu.insertItem(rootItem, at: insertIndex)
     }
 
@@ -1450,23 +1440,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSLocalizedString(key, comment: "")
     }
 
-    private func topLevelMenuItem(matching titles: Set<String>) -> NSMenuItem? {
-        NSApp.mainMenu?.items.first { titles.contains($0.title) }
+    /// Find a top-level menu by an action it owns, not its localized title.
+    private func topLevelMenuItem(containing action: Selector) -> NSMenuItem? {
+        guard let mainMenu = NSApp.mainMenu else { return nil }
+        return submenuItem(containing: action, in: mainMenu)
     }
 
-    private func topLevelSubmenu(matching titles: Set<String>) -> NSMenu? {
-        topLevelMenuItem(matching: titles)?.submenu
+    private func topLevelSubmenu(containing action: Selector) -> NSMenu? {
+        topLevelMenuItem(containing: action)?.submenu
     }
 
-    private static let fileMenuTitles: Set<String> = ["File", "文件"]
-    private static let viewMenuTitles: Set<String> = ["View", "显示"]
-    private static let windowMenuTitles: Set<String> = ["Window", "窗口"]
-    private static let formatMenuTitles: Set<String> = ["Format", "格式"]
-    private static let goMenuTitles: Set<String> = ["Go", "前往"]
-    private static let appearanceMenuTitles: Set<String> = ["Appearance", "外观"]
-    private static let contentWidthMenuTitles: Set<String> = ["Content Width", "内容宽度"]
-    private static let showSidebarMenuTitles: Set<String> = ["Show Sidebar", "显示边栏"]
-    private static let actualSizeMenuTitles: Set<String> = ["Actual Size", "实际大小"]
+    private func fileMenu() -> NSMenu? {
+        topLevelSubmenu(containing: #selector(openDocument(_:)))
+    }
+
+    private func viewMenu() -> NSMenu? {
+        topLevelSubmenu(containing: #selector(MainSplitViewController.resetDocumentZoom(_:)))
+    }
+
+    private func windowMenu() -> NSMenu? {
+        NSApp.windowsMenu
+    }
+
+    private func formatMenu() -> NSMenu? {
+        topLevelSubmenu(containing: #selector(formatMarkdownFromMenu(_:)))
+    }
+
+    private func goMenu() -> NSMenu? {
+        topLevelSubmenu(containing: #selector(MarkdownWebView.mdScrollPreviousHeading(_:)))
+    }
+
+    private func appearanceMenuItem() -> NSMenuItem? {
+        guard let viewMenu = viewMenu() else { return nil }
+        return submenuItem(containing: #selector(selectAppearanceMode(_:)), in: viewMenu)
+    }
+
+    private func contentWidthMenuItem() -> NSMenuItem? {
+        guard let viewMenu = viewMenu() else { return nil }
+        return submenuItem(containing: #selector(selectContentWidthSetting(_:)), in: viewMenu)
+    }
+
+    private func showSidebarMenuItem() -> NSMenuItem? {
+        viewMenu()?.items.first {
+            $0.action == #selector(MainSplitViewController.toggleSidebar(_:))
+        }
+    }
+
+    private func actualSizeMenuItem() -> NSMenuItem? {
+        viewMenu()?.items.first {
+            $0.action == #selector(MainSplitViewController.resetDocumentZoom(_:))
+        }
+    }
+
+    private func submenuItem(containing action: Selector, in menu: NSMenu) -> NSMenuItem? {
+        menu.items.first { item in
+            item.submenu?.items.contains(where: { $0.action == action }) == true
+        }
+    }
 }
 
 
