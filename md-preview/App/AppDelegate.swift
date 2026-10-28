@@ -99,6 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let layout: ReaderLayoutSetting
         let alignment: TextAlignmentSetting
         let strictLineBreaks: Bool
+        let prettyTextWrapping: Bool
 
         static func current() -> SharedLook {
             SharedLook(preset: ThemePreset.applied(),
@@ -107,7 +108,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                        font: DocumentFontSetting.current,
                        layout: ReaderLayoutSetting.current,
                        alignment: TextAlignmentSetting.current,
-                       strictLineBreaks: StrictLineBreaksSetting.current)
+                       strictLineBreaks: StrictLineBreaksSetting.current,
+                       prettyTextWrapping: PrettyTextWrappingSetting.current)
         }
     }
 
@@ -229,6 +231,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             || model.readerLayout != ReaderLayoutSetting.current
             || model.textAlignment != TextAlignmentSetting.current
             || model.strictLineBreaks != StrictLineBreaksSetting.current
+            || model.prettyTextWrapping != PrettyTextWrappingSetting.current
         let languageChanged = model.appLanguage != AppLanguageSetting.selection()
         guard changed || languageChanged else { return }
         model.refreshFromExternalSources()
@@ -507,6 +510,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         guard enabled != StrictLineBreaksSetting.current else { return }
         StrictLineBreaksSetting.current = enabled
         reloadDocumentPreviewsForSettingChange()
+    }
+
+    func applyPrettyTextWrappingSetting(_ enabled: Bool) {
+        guard enabled != PrettyTextWrappingSetting.current else { return }
+        PrettyTextWrappingSetting.current = enabled
+        reloadDocumentPreviewsForSettingChange()
+        // Update the cached editor in place to preserve unsaved edits and selection.
+        documentWindowControllers.forEach { $0.mainSplit?.applyPrettyTextWrapping() }
     }
 
     func applyContentWidthSetting(_ setting: ContentWidthSetting) {

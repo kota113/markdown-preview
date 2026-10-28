@@ -8,6 +8,7 @@ struct ReaderRenderSettings: Equatable {
     let documentFont: DocumentFontSetting
     let textAlignment: TextAlignmentSetting
     let strictLineBreaks: Bool
+    let prettyTextWrapping: Bool
     let readerLayout: ReaderLayoutSetting
     let themeOverrides: MarkdownHTML.ThemeOverrides?
 
@@ -16,6 +17,7 @@ struct ReaderRenderSettings: Equatable {
                              documentFont: .current,
                              textAlignment: .current,
                              strictLineBreaks: StrictLineBreaksSetting.current,
+                             prettyTextWrapping: PrettyTextWrappingSetting.current,
                              readerLayout: .current,
                              themeOverrides: ThemeColorsSetting.current.markdownThemeOverrides)
     }
@@ -25,7 +27,7 @@ struct ReaderRenderSettings: Equatable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .sortedKeys
         let layout = (try? encoder.encode(readerLayout)).map { String(decoding: $0, as: UTF8.self) } ?? ""
-        return [contentWidth.rawValue, documentFont.rawValue, textAlignment.rawValue, layout, String(strictLineBreaks), themeOverrides?.css ?? ""]
+        return [contentWidth.rawValue, documentFont.rawValue, textAlignment.rawValue, layout, String(strictLineBreaks), String(prettyTextWrapping), themeOverrides?.css ?? ""]
             .joined(separator: "|")
     }
 }

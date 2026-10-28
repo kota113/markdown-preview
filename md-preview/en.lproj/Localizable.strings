@@ -330,6 +330,8 @@
 
 /* Reading preferences */
 "Strict line breaks" = "Strict line breaks";
+"Improve paragraph wrapping" = "Improve paragraph wrapping";
+"Avoid very short final lines in paragraphs." = "Avoid very short final lines in paragraphs.";
 
 /* App link approvals */
 "Reset App Link Approvals" = "Reset App Link Approvals";

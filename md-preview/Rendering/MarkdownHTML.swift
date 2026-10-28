@@ -177,9 +177,9 @@ nonisolated enum MarkdownHTML {
     /// In body ems: the editor's --mdp-body-em keeps a code line's smaller
     /// font from shrinking it; the preview falls back to the element's em.
     static let quoteIndentCSS = "--mdp-quote-indent: round(calc(1.5 * var(--mdp-body-em, 1em)), 1px);"
-    /// Full kerning, and no lone short word on a paragraph's last line. Both
-    /// modes share it so entering edit mode keeps every line break.
-    static let bodyTextRenderingCSS = "text-rendering: optimizeLegibility; text-wrap: pretty;"
+    /// Full kerning, with optional pretty wrapping in both read and edit mode.
+    /// A shared CSS variable keeps the two surfaces' line breaks in sync.
+    static let bodyTextRenderingCSS = "text-rendering: optimizeLegibility; text-wrap: var(--mdp-text-wrap-style, pretty);"
     /// Monospace reads larger than the body face at the same size, so block
     /// code steps down to the inline code size, on whole-pixel lines for the
     /// editor's 1x snapping. Wrapped code breaks greedily, not `pretty`.
@@ -290,6 +290,7 @@ nonisolated enum MarkdownHTML {
                          documentFont: DocumentFontSetting = .current,
                          readerLayout: ReaderLayoutSetting = .current,
                          strictLineBreaks: Bool = StrictLineBreaksSetting.current,
+                         prettyTextWrapping: Bool = PrettyTextWrappingSetting.current,
                          textAlignment: TextAlignmentSetting = .current) -> String {
         render(markdown: markdown,
                allowsScroll: allowsScroll,
@@ -299,6 +300,7 @@ nonisolated enum MarkdownHTML {
                documentFont: documentFont,
                readerLayout: readerLayout,
                strictLineBreaks: strictLineBreaks,
+               prettyTextWrapping: prettyTextWrapping,
                textAlignment: textAlignment).html
     }
 
@@ -324,6 +326,7 @@ nonisolated enum MarkdownHTML {
                        documentFont: DocumentFontSetting = .current,
                        readerLayout: ReaderLayoutSetting = .current,
                        strictLineBreaks: Bool = StrictLineBreaksSetting.current,
+                       prettyTextWrapping: Bool = PrettyTextWrappingSetting.current,
                        textAlignment: TextAlignmentSetting = .current,
                        warmup: Bool = false,
                        pageTopClearance: CGFloat = 0,
@@ -490,7 +493,7 @@ nonisolated enum MarkdownHTML {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         \(baseTag)
         <style>\(stylesheet)</style>
-        <style>:root { --mdp-page-top-clearance: \(pageTopClearance)px; --mdp-chrome-zoom: \(chromeZoom); }</style>
+        <style>:root { --mdp-page-top-clearance: \(pageTopClearance)px; --mdp-chrome-zoom: \(chromeZoom); --mdp-text-wrap-style: \(prettyTextWrapping ? "pretty" : "wrap"); }</style>
         \(themeStyleBlock)
         \(scrollOverride)
         \(contentWidthOverride)

@@ -331,6 +331,8 @@
 
 /* Reading preferences */
 "Strict line breaks" = "Ścisłe reguły podziału wierszy";
+"Improve paragraph wrapping" = "Ulepsz zawijanie akapitów";
+"Avoid very short final lines in paragraphs." = "Zapobiega bardzo krótkim ostatnim wierszom akapitów.";
 
 /* App link approvals */
 "Reset App Link Approvals" = "Wyzeruj zgody na otwieranie łączy aplikacji";

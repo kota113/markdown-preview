@@ -115,6 +115,7 @@
 				"Rendering/MarkdownHTML+Stylesheet.swift",
 				"Rendering/MarkdownHTML+Utils.swift",
 				Rendering/MarkdownWebView.swift,
+				Rendering/PrettyTextWrappingSetting.swift,
 				Rendering/QuickLookAppearance.swift,
 				Rendering/ReaderLayoutSetting.swift,
 				Rendering/StrictLineBreaksSetting.swift,

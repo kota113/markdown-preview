@@ -130,6 +130,13 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
         webView.evaluateJavaScript(script) { _, _ in }
     }
 
+    /// Restyle an already loaded editor without discarding unsaved Markdown or selection.
+    func applyPrettyTextWrappingSetting() {
+        let value = PrettyTextWrappingSetting.current ? "pretty" : "wrap"
+        let script = "document.documentElement.style.setProperty('--mdp-text-wrap-style', '" + value + "')"
+        webView.evaluateJavaScript(script) { _, _ in }
+    }
+
     override func viewDidLayout() {
         super.viewDidLayout()
         updateObscuredContentInsets()
@@ -556,6 +563,7 @@ final class EditorViewController: NSViewController, WKNavigationDelegate {
                 darkPageBackground: darkPageBackground,
                 themeOverrideCSS: colors.editorOverrideCSS,
                 usesPageScrolling: usesPageScrolling,
+                prettyTextWrapping: PrettyTextWrappingSetting.current,
                 bridgeName: EditorBridge.name
             )
         )

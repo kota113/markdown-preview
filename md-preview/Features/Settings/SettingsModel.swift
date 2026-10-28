@@ -72,6 +72,13 @@ final class SettingsModel {
         }
     }
 
+    var prettyTextWrapping: Bool {
+        didSet {
+            guard !isRestoringExternalValues, prettyTextWrapping != oldValue else { return }
+            appDelegate?.applyPrettyTextWrappingSetting(prettyTextWrapping)
+        }
+    }
+
     var readerLayout: ReaderLayoutSetting {
         didSet {
             guard !isRestoringExternalValues, readerLayout != oldValue else { return }
@@ -308,6 +315,7 @@ final class SettingsModel {
         readerLayout = ReaderLayoutSetting.current
         textAlignment = TextAlignmentSetting.current
         strictLineBreaks = StrictLineBreaksSetting.current
+        prettyTextWrapping = PrettyTextWrappingSetting.current
         isAlwaysOnTop = AlwaysOnTopPolicy.isEnabled
         opensDocumentsInTabs = TabOpeningPolicy.isEnabled
         opensMarkdownLinksInNewWindows = UserDefaults.standard.bool(forKey: "MarkdownPreview.opensMarkdownLinksInNewWindows")
@@ -370,6 +378,7 @@ final class SettingsModel {
         readerLayout = ReaderLayoutSetting.current
         textAlignment = TextAlignmentSetting.current
         strictLineBreaks = StrictLineBreaksSetting.current
+        prettyTextWrapping = PrettyTextWrappingSetting.current
         isAlwaysOnTop = AlwaysOnTopPolicy.isEnabled
         opensDocumentsInTabs = TabOpeningPolicy.isEnabled
         opensMarkdownLinksInNewWindows = UserDefaults.standard.bool(forKey: "MarkdownPreview.opensMarkdownLinksInNewWindows")

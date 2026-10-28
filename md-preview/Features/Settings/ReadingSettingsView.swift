@@ -34,6 +34,10 @@ struct ReadingSettingsView: View {
                     Toggle(L("Strict line breaks"), isOn: $model.strictLineBreaks)
                     SettingsCaption(L("Turn this off to keep every line break as written."))
                         .padding(.leading, 20)
+                    Toggle(L("Improve paragraph wrapping"), isOn: $model.prettyTextWrapping)
+                        .padding(.top, 8)
+                    SettingsCaption(L("Avoid very short final lines in paragraphs."))
+                        .padding(.leading, 20)
                 }
             }
             .settingsGroupGap()
