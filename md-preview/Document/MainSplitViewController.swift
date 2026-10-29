@@ -344,6 +344,10 @@ final class MainSplitViewController: NSSplitViewController {
         contentViewController?.reloadPreviewForSettingChange()
     }
 
+    func applyPrettyTextWrapping() {
+        cachedEditorViewController?.applyPrettyTextWrappingSetting()
+    }
+
     /// Pushes a theme color change into the preview and, when one exists,
     /// the cached editor page — visible or kept warm for reuse.
 

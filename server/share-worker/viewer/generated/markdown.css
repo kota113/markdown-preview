@@ -163,7 +163,7 @@ body {
     background: transparent;
     padding: calc((32.0px + var(--mdp-page-top-clearance, 0px)) / var(--mdp-chrome-zoom, 1)) var(--mdp-page-padding, 40.0px) 48.0px;
     -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility; text-wrap: pretty;
+    text-rendering: optimizeLegibility; text-wrap: var(--mdp-text-wrap-style, pretty);
 }
 /* Reader spacing tweaks stop at code — whitespace fidelity wins. */
 pre, code {

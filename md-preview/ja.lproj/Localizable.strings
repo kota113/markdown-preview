@@ -330,6 +330,8 @@
 
 /* Reading preferences */
 "Strict line breaks" = "厳密な改行";
+"Improve paragraph wrapping" = "段落の折り返しを改善";
+"Avoid very short final lines in paragraphs." = "段落の最終行が極端に短くならないようにします。";
 
 /* App link approvals */
 "Reset App Link Approvals" = "リンクの許可をリセット";

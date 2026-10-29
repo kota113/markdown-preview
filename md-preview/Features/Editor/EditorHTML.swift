@@ -11,6 +11,7 @@ nonisolated enum EditorHTML {
         var darkPageBackground = "transparent"
         var themeOverrideCSS = ""
         var usesPageScrolling = false
+        var prettyTextWrapping = PrettyTextWrappingSetting.current
         var bridgeName = "mdEditorHost"
     }
 
@@ -39,6 +40,7 @@ nonisolated enum EditorHTML {
             /* Semantic system colors resolve per appearance on their own. */
             \(MarkdownHTML.textColorCSS)
             \(MarkdownHTML.quoteIndentCSS)
+            --mdp-text-wrap-style: \(configuration.prettyTextWrapping ? "pretty" : "wrap");
             --secondary: -apple-system-secondary-label;
             --quote-border: -apple-system-quaternary-label;
             --grid: -apple-system-separator;
