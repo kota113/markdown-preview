@@ -1210,6 +1210,9 @@ class TableEditorWidget extends WidgetType {
             return
           }
           if (event.key !== "Tab" && event.key !== "Enter") return
+          // Let the IME commit its candidate before handling cell navigation.
+          // keyCode 229 covers WebKit cases where isComposing is already false.
+          if (event.isComposing || event.keyCode === 229) return
           event.preventDefault()
           model.rows[row][column] = editor.innerText || ""
           const backwards = event.key === "Tab" && event.shiftKey

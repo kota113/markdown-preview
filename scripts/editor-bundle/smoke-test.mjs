@@ -1037,6 +1037,43 @@ check("Tab saves the cell and appends a row from the final cell",
     && tableEditor.getMarkdown().split("\n").length === 4)
 tableEditor.destroy()
 
+const imeTableHost = dom.window.document.createElement("div")
+dom.window.document.body.appendChild(imeTableHost)
+const imeTableEditor = dom.window.MDEditor.create(
+  imeTableHost,
+  "| Word | Status |\n| --- | --- |\n| Ada | Active |",
+  {},
+)
+const imeCell = imeTableHost.querySelector('[data-table-row="1"][data-table-column="0"]')
+if (imeCell) Object.defineProperty(imeCell, "innerText", { get() { return this.textContent } })
+imeCell?.dispatchEvent(new dom.window.FocusEvent("focus"))
+if (imeCell) imeCell.textContent = "日本語"
+const imeOriginal = imeTableEditor.getMarkdown()
+const imeEnter = (options) => {
+  const event = new dom.window.KeyboardEvent("keydown", {
+    key: "Enter", bubbles: true, cancelable: true, ...options,
+  })
+  imeCell?.dispatchEvent(event)
+  return event
+}
+const composingEnter = imeEnter({ isComposing: true })
+check("IME confirmation Enter does not navigate while composing",
+  !composingEnter.defaultPrevented
+    && imeTableEditor.getMarkdown() === imeOriginal
+    && imeCell?.dataset.tableEditing === "true")
+const webkitEnter = imeEnter({ keyCode: 229 })
+check("IME confirmation Enter with keyCode 229 does not navigate",
+  !webkitEnter.defaultPrevented
+    && imeTableEditor.getMarkdown() === imeOriginal
+    && imeCell?.dataset.tableEditing === "true")
+const normalEnter = imeEnter({ keyCode: 13 })
+await new Promise(resolve => setTimeout(resolve, 30))
+check("ordinary Enter still commits the edited cell and navigates",
+  normalEnter.defaultPrevented
+    && imeTableEditor.getMarkdown().includes("日本語")
+    && imeTableEditor.getMarkdown().split("\n").length === 3)
+imeTableEditor.destroy()
+
 const obsidianTableHost = dom.window.document.createElement("div")
 dom.window.document.body.appendChild(obsidianTableHost)
 const obsidianTableEditor = dom.window.MDEditor.create(
